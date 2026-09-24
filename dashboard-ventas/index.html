@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard de Ventas — Panel Interactivo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg-page:#0b1016;
+    --surface:#141b26;
+    --surface-2:#1b2532;
+    --border:rgba(255,255,255,0.08);
+    --ink:#ffffff;
+    --ink-soft:#c3c9d4;
+    --ink-muted:#7f8896;
+    --blue:#3987e5;
+    --blue-2:#2a78d6;
+    --orange:#d95926;
+    --aqua:#199e70;
+    --yellow:#c98500;
+    --gold:#e0ac3c;
+    --gold-soft:rgba(224,172,60,0.16);
+    --good:#0ca30c;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    background:var(--bg-page);
+    color:var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding:16px;
+  }
+  .wrap{ max-width:1440px; margin:0 auto; display:flex; flex-direction:column; gap:14px; }
+
+  /* ---- Header ---- */
+  header{
+    display:flex;
+    gap:14px;
+    align-items:stretch;
+    flex-wrap:wrap;
+  }
+  .brand{
+    flex:1 1 320px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:16px 20px;
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  .brand .icon{
+    width:44px; height:44px; border-radius:10px;
+    background:var(--gold-soft);
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+  }
+  .brand h1{ font-size:19px; margin:0; line-height:1.2; }
+  .brand .sub{ font-size:12px; color:var(--ink-muted); margin-top:3px; display:flex; align-items:center; gap:6px; }
+  .demo-badge{
+    font-size:9.5px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    background:var(--gold-soft);
+    color:var(--gold);
+    border-radius:5px;
+    padding:2px 6px;
+    font-weight:700;
+  }
+
+  .filters-bar{
+    display:flex;
+    gap:10px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:12px 18px;
+    align-items:center;
+    flex:1 1 320px;
+  }
+  .filter-field{ display:flex; flex-direction:column; gap:4px; flex:1; }
+  .filter-field label{ font-size:10.5px; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-muted); font-weight:600; }
+  select{
+    background:var(--surface-2);
+    color:var(--ink);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:8px 10px;
+    font-size:13px;
+    font-family:inherit;
+  }
+
+  .tagline{
+    flex:0 0 220px;
+    background:linear-gradient(135deg, #1a2130, #0d1119);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:14px 18px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  .tagline .bars{ display:flex; align-items:flex-end; gap:3px; height:28px; flex-shrink:0; }
+  .tagline .bars span{ width:5px; background:var(--gold); border-radius:2px; display:block; }
+  .tagline strong{ font-size:13px; line-height:1.25; display:block; }
+
+  /* ---- Layout ---- */
+  .dashboard{
+    display:grid;
+    grid-template-columns: 176px 1fr 1fr 1fr 1.35fr;
+    grid-template-areas:
+      "sidebar kpi1 kpi2 kpi3 topcards"
+      "sidebar monthly product saletype treemap"
+      "sidebar daily daily paytype treemap";
+    gap:14px;
+    align-items:stretch;
+  }
+  @media (max-width: 980px){
+    .dashboard{ display:flex; flex-direction:column; }
+    .dashboard > *{ width:100%; }
+  }
+
+  .panel{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:14px 16px;
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+  }
+  .panel h2{
+    font-size:12.5px;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    margin:0 0 10px;
+    color:var(--ink-soft);
+    display:flex;
+    align-items:center;
+    gap:7px;
+    font-weight:700;
+  }
+  .panel h2 .dot{ width:7px; height:7px; border-radius:50%; background:var(--blue); flex-shrink:0; }
+  .chart-box{ position:relative; flex:1; min-height:150px; }
+
+  /* ---- Sidebar ---- */
+  .sidebar-panel{ grid-area:sidebar; gap:14px; }
+  .filter-group{ display:flex; flex-direction:column; gap:6px; }
+  .filter-group .glabel{ font-size:10.5px; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-muted); font-weight:700; margin-bottom:2px; }
+  .check-row{ display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-soft); padding:3px 0; cursor:pointer; }
+  .check-row input{ accent-color:var(--blue); width:14px; height:14px; cursor:pointer; }
+  .month-list{ display:flex; flex-direction:column; max-height:280px; overflow-y:auto; padding-right:4px; }
+  .reset-btn{
+    margin-top:auto;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    color:var(--ink-soft);
+    border-radius:10px;
+    padding:10px;
+    font-size:12.5px;
+    font-weight:600;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+  }
+  .reset-btn:hover{ color:var(--ink); border-color:var(--blue); }
+
+  /* ---- KPI cards ---- */
+  .kpi{ justify-content:center; gap:6px; }
+  .kpi .label{ font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:var(--gold); font-weight:700; }
+  .kpi .value-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .kpi .value{ font-size:23px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .kpi .kicon{ width:30px; height:30px; flex-shrink:0; color:var(--gold); }
+
+  /* ---- Top cards ---- */
+  .topcards-cell{ grid-area:topcards; display:flex; gap:14px; }
+  .top-card{
+    flex:1;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:14px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    text-align:center;
+    gap:6px;
+  }
+  .top-card .tlabel{ font-size:10.5px; text-transform:uppercase; letter-spacing:0.04em; color:var(--ink-muted); font-weight:700; }
+  .top-card .tname{ font-size:14px; font-weight:700; color:var(--blue); }
+  .top-card .tvalue{ font-size:12px; color:var(--ink-soft); font-variant-numeric:tabular-nums; }
+  .top-card .ticon{ width:34px; height:34px; color:var(--gold); margin-top:4px; }
+
+  /* ---- Treemap ---- */
+  .treemap-cell{ grid-area:treemap; }
+  .treemap-box{ position:relative; flex:1; min-height:220px; border-radius:8px; overflow:hidden; }
+  .tm-cell{
+    position:absolute;
+    box-sizing:border-box;
+    border:2px solid var(--surface);
+    display:flex;
+    align-items:flex-end;
+    padding:8px 10px;
+    font-size:12px;
+    font-weight:700;
+    color:#fff;
+    text-shadow:0 1px 3px rgba(0,0,0,0.55);
+    overflow:hidden;
+  }
+  .tm-cell .tm-name{ display:block; }
+  .tm-cell .tm-val{ display:block; font-weight:500; font-size:10.5px; opacity:0.9; }
+
+  footer.credit{
+    text-align:center;
+    font-size:11px;
+    color:var(--ink-muted);
+    padding:6px 0 2px;
+  }
+  footer.credit a{ color:var(--blue); text-decoration:none; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 19V9M10 19V4M16 19V12M22 19H2" stroke="#e0ac3c" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+      <div>
+        <h1>Dashboard de Ventas</h1>
+        <div class="sub">Panel interactivo · tu negocio <span class="demo-badge">Datos de ejemplo</span></div>
+      </div>
+    </div>
+
+    <div class="filters-bar">
+      <div class="filter-field">
+        <label>Tipo de venta</label>
+        <select id="f-tipoventa">
+          <option value="Todas">Todas</option>
+          <option value="Online">Online</option>
+          <option value="Local">Local</option>
+        </select>
+      </div>
+      <div class="filter-field">
+        <label>Tipo de pago</label>
+        <select id="f-tipopago">
+          <option value="Todas">Todas</option>
+          <option value="Efectivo">Efectivo</option>
+          <option value="Transferencia">Transferencia</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="tagline">
+      <div class="bars">
+        <span style="height:40%;"></span>
+        <span style="height:65%;"></span>
+        <span style="height:50%;"></span>
+        <span style="height:90%;"></span>
+        <span style="height:70%;"></span>
+      </div>
+      <strong>Decisiones<br>basadas en datos</strong>
+    </div>
+  </header>
+
+  <div class="dashboard">
+
+    <!-- SIDEBAR -->
+    <div class="panel sidebar-panel">
+      <div class="filter-group">
+        <div class="glabel">Año</div>
+        <div id="f-anios"></div>
+      </div>
+      <div class="filter-group" style="flex:1; min-height:0;">
+        <div class="glabel">Mes</div>
+        <div class="month-list" id="f-meses"></div>
+      </div>
+      <button class="reset-btn" id="btn-reset">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Reiniciar filtros
+      </button>
+    </div>
+
+    <!-- KPI 1 -->
+    <div class="panel kpi" style="grid-area:kpi1;">
+      <div class="value-row">
+        <svg class="kicon" viewBox="0 0 24 24" fill="none"><rect x="2" y="6" width="20" height="13" rx="2" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12.5" r="3" stroke="currentColor" stroke-width="1.6"/></svg>
+      </div>
+      <div class="label">Ventas totales</div>
+      <div class="value" id="kpi-ventas">—</div>
+    </div>
+
+    <!-- KPI 2 -->
+    <div class="panel kpi" style="grid-area:kpi2;">
+      <div class="value-row">
+        <svg class="kicon" viewBox="0 0 24 24" fill="none"><path d="M4 17l5-6 4 4 7-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 6h5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="label">Ganancia total</div>
+      <div class="value" id="kpi-ganancia">—</div>
+    </div>
+
+    <!-- KPI 3 -->
+    <div class="panel kpi" style="grid-area:kpi3;">
+      <div class="value-row">
+        <svg class="kicon" viewBox="0 0 24 24" fill="none"><path d="M19 9c0 3.5-3 5-5.5 6.5-.7.4-1.2 1-1.5 1.8-.3-.8-.8-1.4-1.5-1.8C8 14 5 12.5 5 9a7 7 0 0 1 14 0Z" stroke="currentColor" stroke-width="1.6"/><circle cx="9.5" cy="8" r="1" fill="currentColor"/></svg>
+      </div>
+      <div class="label">Ganancia %</div>
+      <div class="value" id="kpi-porcentaje">—</div>
+    </div>
+
+    <!-- TOP CARDS -->
+    <div class="topcards-cell">
+      <div class="top-card">
+        <div class="tlabel">Producto top</div>
+        <div class="tname" id="top-producto-nombre">—</div>
+        <div class="tvalue" id="top-producto-valor">—</div>
+        <svg class="ticon" viewBox="0 0 24 24" fill="none"><path d="M8 4h8v4a4 4 0 0 1-8 0V4Z" stroke="currentColor" stroke-width="1.6"/><path d="M8 5H5a3 3 0 0 0 3 4M16 5h3a3 3 0 0 1-3 4" stroke="currentColor" stroke-width="1.6"/><path d="M12 12v4M9 20h6M10 16h4v4h-4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="top-card">
+        <div class="tlabel">Categoría top</div>
+        <div class="tname" id="top-categoria-nombre">—</div>
+        <div class="tvalue" id="top-categoria-valor">—</div>
+        <svg class="ticon" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="9" r="6" stroke="currentColor" stroke-width="1.6"/><path d="M8.5 14 7 21l5-2.5L17 21l-1.5-7" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      </div>
+    </div>
+
+    <!-- MONTHLY -->
+    <div class="panel" style="grid-area:monthly;">
+      <h2><span class="dot"></span>Evolución mensual</h2>
+      <div class="chart-box"><canvas id="chart-monthly"></canvas></div>
+    </div>
+
+    <!-- PRODUCT -->
+    <div class="panel" style="grid-area:product;">
+      <h2><span class="dot"></span>Producto</h2>
+      <div class="chart-box"><canvas id="chart-product"></canvas></div>
+    </div>
+
+    <!-- SALE TYPE -->
+    <div class="panel" style="grid-area:saletype;">
+      <h2><span class="dot"></span>Tipo venta</h2>
+      <div class="chart-box"><canvas id="chart-saletype"></canvas></div>
+    </div>
+
+    <!-- TREEMAP -->
+    <div class="panel treemap-cell">
+      <h2><span class="dot"></span>Categoría</h2>
+      <div class="treemap-box" id="treemap"></div>
+    </div>
+
+    <!-- DAILY -->
+    <div class="panel" style="grid-area:daily;">
+      <h2><span class="dot"></span>Evolución diaria</h2>
+      <div class="chart-box"><canvas id="chart-daily"></canvas></div>
+    </div>
+
+    <!-- PAYMENT TYPE -->
+    <div class="panel" style="grid-area:paytype;">
+      <h2><span class="dot"></span>Tipo pago</h2>
+      <div class="chart-box"><canvas id="chart-paytype"></canvas></div>
+    </div>
+
+  </div>
+
+  <footer class="credit">Dashboard de demostración con datos de ejemplo · hecho con <a href="https://gato7790.github.io/">gato7790.github.io</a></footer>
+</div>
+
+<script>
+(function(){
+  // ---------- Data generation (seeded, deterministic) ----------
+  function mulberry32(seed){
+    return function(){
+      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+      let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  const rng = mulberry32(20260924);
+
+  const PRODUCTS = [
+    {name:'Producto A', cat:'Categoría 1', base:45},
+    {name:'Producto B', cat:'Categoría 1', base:60},
+    {name:'Producto C', cat:'Categoría 2', base:30},
+    {name:'Producto D', cat:'Categoría 2', base:80},
+    {name:'Producto E', cat:'Categoría 3', base:25},
+    {name:'Producto F', cat:'Categoría 3', base:55},
+    {name:'Producto G', cat:'Categoría 4', base:70},
+    {name:'Producto H', cat:'Categoría 4', base:40},
+    {name:'Producto I', cat:'Categoría 5', base:90},
+    {name:'Producto J', cat:'Categoría 5', base:35},
+  ];
+  const YEARS = [2023, 2024];
+
+  function daysInMonth(y,m){ return new Date(y, m, 0).getDate(); }
+
+  const DATA = [];
+  YEARS.forEach(year=>{
+    for(let m=1; m<=12; m++){
+      const seasonal = 1 + (m>=11?0.35:0) + (m===7?0.15:0);
+      const nTx = Math.round((35 + rng()*35) * seasonal);
+      const dim = daysInMonth(year, m);
+      for(let i=0;i<nTx;i++){
+        const day = 1 + Math.floor(rng()*dim);
+        const prod = PRODUCTS[Math.floor(rng()*PRODUCTS.length)];
+        const qty = 1 + Math.floor(rng()*4);
+        const price = prod.base * (0.9 + rng()*0.3);
+        const monto = Math.round(price*qty*100)/100;
+        const margin = 0.28 + rng()*0.22;
+        const costo = monto * (1-margin);
+        const tipoVenta = rng() < 0.5 ? 'Online' : 'Local';
+        const tipoPago = rng() < 0.52 ? 'Efectivo' : 'Transferencia';
+        DATA.push({year, month:m, day, producto:prod.name, categoria:prod.cat, tipoVenta, tipoPago, monto, costo});
+      }
+    }
+  });
+
+  // ---------- Formatting ----------
+  function fmtCompact(v){
+    const sign = v<0 ? '-' : '';
+    const abs = Math.abs(v);
+    if(abs >= 1e6) return sign + 'S/ ' + (abs/1e6).toFixed(2).replace('.', ',') + ' mill.';
+    if(abs >= 1e3) return sign + 'S/ ' + (abs/1e3).toFixed(1).replace('.', ',') + ' mil';
+    return sign + 'S/ ' + Math.round(abs).toLocaleString('es-PE');
+  }
+  function fmtPct(v){ return v.toFixed(1).replace('.', ',') + '%'; }
+
+  // ---------- Filter state ----------
+  const MONTH_LABELS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const state = {
+    years: new Set(YEARS),
+    months: new Set([1,2,3,4,5,6,7,8,9,10,11,12]),
+    tipoVenta: 'Todas',
+    tipoPago: 'Todas'
+  };
+
+  // ---------- Build sidebar controls ----------
+  const anioBox = document.getElementById('f-anios');
+  YEARS.forEach(y=>{
+    const row = document.createElement('label');
+    row.className = 'check-row';
+    row.innerHTML = '<input type="checkbox" checked data-year="'+y+'"> ' + y;
+    anioBox.appendChild(row);
+  });
+  const mesBox = document.getElementById('f-meses');
+  MONTH_LABELS.forEach((label, idx)=>{
+    const row = document.createElement('label');
+    row.className = 'check-row';
+    row.innerHTML = '<input type="checkbox" checked data-month="'+(idx+1)+'"> ' + label;
+    mesBox.appendChild(row);
+  });
+
+  anioBox.addEventListener('change', e=>{
+    const y = parseInt(e.target.getAttribute('data-year'), 10);
+    if(e.target.checked) state.years.add(y); else state.years.delete(y);
+    render();
+  });
+  mesBox.addEventListener('change', e=>{
+    const m = parseInt(e.target.getAttribute('data-month'), 10);
+    if(e.target.checked) state.months.add(m); else state.months.delete(m);
+    render();
+  });
+  document.getElementById('f-tipoventa').addEventListener('change', e=>{ state.tipoVenta = e.target.value; render(); });
+  document.getElementById('f-tipopago').addEventListener('change', e=>{ state.tipoPago = e.target.value; render(); });
+  document.getElementById('btn-reset').addEventListener('click', ()=>{
+    state.years = new Set(YEARS);
+    state.months = new Set([1,2,3,4,5,6,7,8,9,10,11,12]);
+    state.tipoVenta = 'Todas'; state.tipoPago = 'Todas';
+    document.getElementById('f-tipoventa').value = 'Todas';
+    document.getElementById('f-tipopago').value = 'Todas';
+    anioBox.querySelectorAll('input').forEach(i=>i.checked = true);
+    mesBox.querySelectorAll('input').forEach(i=>i.checked = true);
+    render();
+  });
+
+  // ---------- Aggregation ----------
+  function byYearMonth(d){ return state.years.has(d.year) && state.months.has(d.month); }
+  function sum(list, fn){ return list.reduce((a,d)=>a+fn(d), 0); }
+  function groupSum(list, keyFn){
+    const map = new Map();
+    list.forEach(d=>{
+      const k = keyFn(d);
+      map.set(k, (map.get(k)||0) + d.monto);
+    });
+    return map;
+  }
+
+  // ---------- Charts ----------
+  const chartDefaults = {
+    plugins:{ legend:{ display:false } },
+    scales:{
+      x:{ ticks:{ color:'#7f8896', font:{size:10.5} }, grid:{ color:'rgba(255,255,255,0.06)' } },
+      y:{ ticks:{ color:'#7f8896', font:{size:10.5} }, grid:{ color:'rgba(255,255,255,0.06)' } }
+    }
+  };
+
+  const monthlyChart = new Chart(document.getElementById('chart-monthly'), {
+    type:'bar',
+    data:{ labels:MONTH_LABELS, datasets:[{ data:[], backgroundColor:'#3987e5', borderRadius:4, maxBarThickness:22 }] },
+    options:{ responsive:true, maintainAspectRatio:false, ...chartDefaults,
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:c=>fmtCompact(c.parsed.y) } } } }
+  });
+
+  const dailyLabels = Array.from({length:31}, (_,i)=>i+1);
+  const dailyChart = new Chart(document.getElementById('chart-daily'), {
+    type:'line',
+    data:{ labels:dailyLabels, datasets:[{ data:[], borderColor:'#3987e5', backgroundColor:'rgba(57,135,229,0.18)', fill:true, tension:0.35, pointRadius:0, borderWidth:2 }] },
+    options:{ responsive:true, maintainAspectRatio:false, ...chartDefaults,
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:c=>fmtCompact(c.parsed.y) } } } }
+  });
+
+  const productChart = new Chart(document.getElementById('chart-product'), {
+    type:'bar',
+    data:{ labels:[], datasets:[{ data:[], backgroundColor:'#3987e5', borderRadius:4, maxBarThickness:14 }] },
+    options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      scales:{
+        x:{ ticks:{ color:'#7f8896', font:{size:10} }, grid:{ color:'rgba(255,255,255,0.06)' } },
+        y:{ ticks:{ color:'#c3c9d4', font:{size:10.5} }, grid:{ display:false } }
+      },
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:c=>fmtCompact(c.parsed.x) } } } }
+  });
+
+  function donutOpts(){
+    return { responsive:true, maintainAspectRatio:false, cutout:'62%',
+      plugins:{
+        legend:{ position:'bottom', labels:{ color:'#c3c9d4', font:{size:11}, boxWidth:10, padding:12 } },
+        tooltip:{ callbacks:{ label:c=> c.label + ': ' + fmtCompact(c.parsed) } }
+      } };
+  }
+  const saleTypeChart = new Chart(document.getElementById('chart-saletype'), {
+    type:'doughnut',
+    data:{ labels:['Online','Local'], datasets:[{ data:[0,0], backgroundColor:['#3987e5','#d95926'], borderColor:'#141b26', borderWidth:2 }] },
+    options: donutOpts()
+  });
+  const payTypeChart = new Chart(document.getElementById('chart-paytype'), {
+    type:'doughnut',
+    data:{ labels:['Efectivo','Transferencia'], datasets:[{ data:[0,0], backgroundColor:['#199e70','#c98500'], borderColor:'#141b26', borderWidth:2 }] },
+    options: donutOpts()
+  });
+
+  // ---------- Treemap (simple recursive slice layout) ----------
+  function layoutTreemap(items, x, y, w, h){
+    if(items.length === 0) return [];
+    if(items.length === 1) return [{ ...items[0], x, y, w, h }];
+    const total = items.reduce((a,d)=>a+d.value, 0);
+    const first = items[0];
+    const rest = items.slice(1);
+    const frac = total > 0 ? first.value/total : 1/items.length;
+    let firstRect, restRect;
+    if(w >= h){
+      const fw = w*frac;
+      firstRect = { x, y, w:fw, h };
+      restRect = { x:x+fw, y, w:w-fw, h };
+    } else {
+      const fh = h*frac;
+      firstRect = { x, y, w, h:fh };
+      restRect = { x, y:y+fh, w, h:h-fh };
+    }
+    return [{ ...first, ...firstRect }, ...layoutTreemap(rest, restRect.x, restRect.y, restRect.w, restRect.h)];
+  }
+  const TM_COLORS = ['#2a78d6','#3987e5','#5598e7','#86b6ef','#b7d3f6','#cde2fb'];
+  function renderTreemap(catMap){
+    const box = document.getElementById('treemap');
+    box.innerHTML = '';
+    const items = Array.from(catMap.entries())
+      .map(([name,value])=>({name, value}))
+      .filter(d=>d.value>0)
+      .sort((a,b)=>b.value-a.value);
+    const total = items.reduce((a,d)=>a+d.value,0) || 1;
+    const w = box.clientWidth || 300, h = box.clientHeight || 220;
+    const rects = layoutTreemap(items, 0, 0, w, h);
+    rects.forEach((r, i)=>{
+      const el = document.createElement('div');
+      el.className = 'tm-cell';
+      el.style.left = r.x + 'px';
+      el.style.top = r.y + 'px';
+      el.style.width = Math.max(r.w,0) + 'px';
+      el.style.height = Math.max(r.h,0) + 'px';
+      el.style.background = TM_COLORS[i % TM_COLORS.length];
+      el.title = r.name + ': ' + fmtCompact(r.value) + ' (' + fmtPct(r.value/total*100) + ')';
+      el.innerHTML = '<span><span class="tm-name">'+r.name+'</span><span class="tm-val">'+fmtCompact(r.value)+'</span></span>';
+      box.appendChild(el);
+    });
+  }
+
+  // ---------- Render ----------
+  function render(){
+    const base = DATA.filter(byYearMonth);
+    const full = base.filter(d =>
+      (state.tipoVenta === 'Todas' || d.tipoVenta === state.tipoVenta) &&
+      (state.tipoPago === 'Todas' || d.tipoPago === state.tipoPago)
+    );
+
+    const totalVentas = sum(full, d=>d.monto);
+    const totalCosto = sum(full, d=>d.costo);
+    const ganancia = totalVentas - totalCosto;
+    const gananciaPct = totalVentas > 0 ? (ganancia/totalVentas*100) : 0;
+
+    document.getElementById('kpi-ventas').textContent = fmtCompact(totalVentas);
+    document.getElementById('kpi-ganancia').textContent = fmtCompact(ganancia);
+    document.getElementById('kpi-porcentaje').textContent = fmtPct(gananciaPct);
+
+    // Top producto / categoría
+    const prodMap = groupSum(full, d=>d.producto);
+    const catMap = groupSum(full, d=>d.categoria);
+    let topProd = ['—', 0], topCat = ['—', 0];
+    prodMap.forEach((v,k)=>{ if(v>topProd[1]) topProd=[k,v]; });
+    catMap.forEach((v,k)=>{ if(v>topCat[1]) topCat=[k,v]; });
+    document.getElementById('top-producto-nombre').textContent = topProd[0];
+    document.getElementById('top-producto-valor').textContent = fmtCompact(topProd[1]);
+    document.getElementById('top-categoria-nombre').textContent = topCat[0];
+    document.getElementById('top-categoria-valor').textContent = fmtCompact(topCat[1]);
+
+    // Monthly
+    const monthlyVals = MONTH_LABELS.map((_,idx)=> sum(full.filter(d=>d.month===idx+1), d=>d.monto));
+    monthlyChart.data.datasets[0].data = monthlyVals;
+    monthlyChart.update();
+
+    // Daily
+    const dailyVals = dailyLabels.map(day => sum(full.filter(d=>d.day===day), d=>d.monto));
+    dailyChart.data.datasets[0].data = dailyVals;
+    dailyChart.update();
+
+    // Product ranking (top 8)
+    const prodSorted = Array.from(prodMap.entries()).sort((a,b)=>b[1]-a[1]).slice(0,8);
+    productChart.data.labels = prodSorted.map(p=>p[0]);
+    productChart.data.datasets[0].data = prodSorted.map(p=>p[1]);
+    productChart.update();
+
+    // Sale type (exclude own filter dimension)
+    const saleBase = base.filter(d => state.tipoPago === 'Todas' || d.tipoPago === state.tipoPago);
+    const saleMap = groupSum(saleBase, d=>d.tipoVenta);
+    saleTypeChart.data.datasets[0].data = [saleMap.get('Online')||0, saleMap.get('Local')||0];
+    saleTypeChart.update();
+
+    // Payment type (exclude own filter dimension)
+    const payBase = base.filter(d => state.tipoVenta === 'Todas' || d.tipoVenta === state.tipoVenta);
+    const payMap = groupSum(payBase, d=>d.tipoPago);
+    payTypeChart.data.datasets[0].data = [payMap.get('Efectivo')||0, payMap.get('Transferencia')||0];
+    payTypeChart.update();
+
+    // Treemap
+    renderTreemap(catMap);
+  }
+
+  window.addEventListener('resize', ()=>{
+    const catMap = groupSum(DATA.filter(byYearMonth).filter(d =>
+      (state.tipoVenta === 'Todas' || d.tipoVenta === state.tipoVenta) &&
+      (state.tipoPago === 'Todas' || d.tipoPago === state.tipoPago)
+    ), d=>d.categoria);
+    renderTreemap(catMap);
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
