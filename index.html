@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interés Compuesto — Calculadora de Ahorro</title>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5157336790126759" crossorigin="anonymous"></script>
+<style>
+  :root{
+    --bg:#F4F6F1;
+    --surface:#FFFFFF;
+    --surface-2:#E9EEE6;
+    --ink:#17241C;
+    --ink-soft:#4B5C4F;
+    --accent:#2F6F4E;
+    --accent-soft:#DCEAE1;
+    --gold:#B9812F;
+    --gold-soft:#F2E4CB;
+    --border:#D8E0D3;
+    --shadow:rgba(23,36,28,0.10);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0F1712;
+      --surface:#17211A;
+      --surface-2:#1E2A21;
+      --ink:#E7ECE2;
+      --ink-soft:#A9B7A9;
+      --accent:#6FBE93;
+      --accent-soft:#22392C;
+      --gold:#E3B15E;
+      --gold-soft:#332A16;
+      --border:#2A3830;
+      --shadow:rgba(0,0,0,0.45);
+    }
+  }
+
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    padding-inline:16px;
+    padding-block:32px;
+  }
+  .page{
+    max-width:960px;
+    margin:0 auto;
+    display:flex;
+    flex-direction:column;
+    gap:28px;
+  }
+  .eyebrow{
+    font-family:"IBM Plex Mono", ui-monospace, monospace;
+    font-size:12px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--accent);
+    font-weight:600;
+  }
+  h1{
+    font-family:"Fraunces", Georgia, serif;
+    font-size:clamp(32px,5vw,48px);
+    line-height:1.05;
+    margin:6px 0 8px;
+    text-wrap:balance;
+    font-weight:600;
+  }
+  .lede{
+    color:var(--ink-soft);
+    font-size:16px;
+    max-width:60ch;
+    line-height:1.5;
+    margin:0;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);
+    gap:20px;
+  }
+  @media (max-width:760px){
+    .grid{grid-template-columns:1fr;}
+  }
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:24px;
+    box-shadow:0 1px 2px var(--shadow);
+  }
+  .field{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    margin-bottom:18px;
+  }
+  .field:last-child{margin-bottom:0;}
+  label{
+    font-size:13px;
+    font-weight:600;
+    color:var(--ink-soft);
+  }
+  .input-wrap{
+    position:relative;
+    display:flex;
+    align-items:center;
+  }
+  .input-wrap .prefix, .input-wrap .suffix{
+    position:absolute;
+    font-family:"IBM Plex Mono", monospace;
+    font-size:14px;
+    color:var(--ink-soft);
+    pointer-events:none;
+  }
+  .input-wrap .prefix{left:14px;}
+  .input-wrap .suffix{right:14px;}
+  input[type=number]{
+    width:100%;
+    font-family:"IBM Plex Mono", ui-monospace, monospace;
+    font-size:16px;
+    font-variant-numeric:tabular-nums;
+    padding:12px 14px;
+    border-radius:10px;
+    border:1px solid var(--border);
+    background:var(--surface-2);
+    color:var(--ink);
+  }
+  .input-wrap.has-prefix input{padding-left:30px;}
+  .input-wrap.has-suffix input{padding-right:32px;}
+  input[type=number]:focus{
+    outline:2px solid var(--accent);
+    outline-offset:1px;
+  }
+  input[type=range]{
+    width:100%;
+    accent-color:var(--accent);
+  }
+  .range-row{
+    display:flex;
+    justify-content:space-between;
+    font-family:"IBM Plex Mono",monospace;
+    font-size:12px;
+    color:var(--ink-soft);
+  }
+  .results{
+    display:flex;
+    flex-direction:column;
+    gap:18px;
+  }
+  .headline-stat{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+  }
+  .headline-stat .label{
+    font-size:13px;
+    color:var(--ink-soft);
+    font-weight:600;
+  }
+  .headline-stat .value{
+    font-family:"IBM Plex Mono", monospace;
+    font-variant-numeric:tabular-nums;
+    font-size:clamp(28px,4vw,40px);
+    font-weight:600;
+    color:var(--accent);
+  }
+  .stat-row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+  }
+  .stat-tile{
+    background:var(--surface-2);
+    border-radius:12px;
+    padding:14px 16px;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+  }
+  .stat-tile.gold{background:var(--gold-soft);}
+  .stat-tile .t-label{
+    font-size:12px;
+    color:var(--ink-soft);
+    font-weight:600;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+  }
+  .stat-tile .t-value{
+    font-family:"IBM Plex Mono",monospace;
+    font-variant-numeric:tabular-nums;
+    font-size:19px;
+    font-weight:600;
+  }
+  .stat-tile.gold .t-value{color:var(--gold);}
+  .stat-tile:not(.gold) .t-value{color:var(--accent);}
+  .chart-wrap{
+    margin-top:4px;
+  }
+  svg text{
+    font-family:"IBM Plex Mono", monospace;
+    fill:var(--ink-soft);
+  }
+  .disclaimer{
+    font-size:12px;
+    color:var(--ink-soft);
+    line-height:1.5;
+    border-top:1px solid var(--border);
+    padding-top:14px;
+    margin-top:2px;
+  }
+  .ad-slot{
+    border:1px dashed var(--border);
+    border-radius:12px;
+    padding:22px;
+    text-align:center;
+    color:var(--ink-soft);
+    font-size:13px;
+    font-family:"IBM Plex Mono",monospace;
+    background:var(--surface-2);
+  }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<!-- Pega aquí el <script> de verificación de tu cuenta de Google AdSense cuando lo tengas -->
+
+</head>
+<body>
+
+<div class="page">
+  <div>
+    <div class="eyebrow">Calculadora de ahorro</div>
+    <h1>Interés compuesto</h1>
+    <p class="lede">Simula cuánto puede crecer tu dinero si ahorras un monto fijo cada mes y lo dejas invertido a una tasa de interés anual constante.</p>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="field">
+        <label for="inicial">Monto inicial</label>
+        <div class="input-wrap has-prefix">
+          <span class="prefix">S/</span>
+          <input type="number" id="inicial" value="1000" min="0" step="50">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="aporte">Aporte mensual</label>
+        <div class="input-wrap has-prefix">
+          <span class="prefix">S/</span>
+          <input type="number" id="aporte" value="200" min="0" step="10">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="tasa">Tasa de interés anual</label>
+        <div class="input-wrap has-suffix">
+          <input type="number" id="tasa" value="8" min="0" max="40" step="0.1">
+          <span class="suffix">%</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="anios">Plazo</label>
+        <input type="range" id="anios" value="10" min="1" max="40" step="1">
+        <div class="range-row">
+          <span id="anios-label">10 años</span>
+          <span>40 años</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card results">
+      <div class="headline-stat">
+        <span class="label">Total estimado al final del plazo</span>
+        <span class="value" id="total-final">S/ 0</span>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-tile">
+          <span class="t-label">Aportado</span>
+          <span class="t-value" id="total-aportado">S/ 0</span>
+        </div>
+        <div class="stat-tile gold">
+          <span class="t-label">Interés ganado</span>
+          <span class="t-value" id="total-interes">S/ 0</span>
+        </div>
+      </div>
+
+      <div class="chart-wrap">
+        <svg id="chart" viewBox="0 0 480 220" width="100%" height="220" role="img" aria-label="Crecimiento del ahorro a lo largo del tiempo"></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- Espacio reservado para un bloque de anuncio de Google AdSense.
+       Sustituye este div por tu <ins class="adsbygoogle"> y el script de tu cuenta. -->
+  <div class="ad-slot">Espacio publicitario (AdSense)</div>
+
+  <p class="disclaimer">Cálculo referencial con tasa de interés constante y capitalización mensual. No considera impuestos, comisiones ni inflación, y no constituye asesoría financiera.</p>
+</div>
+
+<script>
+(function(){
+  const $ = (id) => document.getElementById(id);
+  const inicial = $('inicial'), aporte = $('aporte'), tasa = $('tasa'), anios = $('anios');
+  const aniosLabel = $('anios-label');
+  const totalFinal = $('total-final'), totalAportado = $('total-aportado'), totalInteres = $('total-interes');
+  const svg = $('chart');
+
+  const fmt = new Intl.NumberFormat('es-PE', {style:'currency', currency:'PEN', maximumFractionDigits:0});
+
+  function simulate(P0, monthly, annualRatePct, years){
+    const r = (annualRatePct/100)/12;
+    let balance = P0;
+    let contributed = P0;
+    const yearly = [balance];
+    for(let m=1; m<=years*12; m++){
+      balance = balance*(1+r) + monthly;
+      contributed += monthly;
+      if(m % 12 === 0) yearly.push(balance);
+    }
+    return {balance, contributed, yearly};
+  }
+
+  function drawChart(yearly){
+    const W = 480, H = 220, padL = 8, padR = 8, padT = 14, padB = 22;
+    const max = Math.max(...yearly, 1);
+    const n = yearly.length - 1;
+    const x = (i) => padL + (i/n) * (W - padL - padR);
+    const y = (v) => H - padB - (v/max) * (H - padT - padB);
+
+    let path = `M ${x(0)} ${y(yearly[0])}`;
+    for(let i=1;i<yearly.length;i++) path += ` L ${x(i)} ${y(yearly[i])}`;
+    let area = path + ` L ${x(n)} ${H-padB} L ${x(0)} ${H-padB} Z`;
+
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+    const accentSoft = getComputedStyle(document.documentElement).getPropertyValue('--accent-soft').trim();
+    const border = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
+
+    let gridLines = '';
+    for(let g=1; g<=3; g++){
+      const gy = padT + (g/4)*(H-padT-padB);
+      gridLines += `<line x1="${padL}" y1="${gy}" x2="${W-padR}" y2="${gy}" stroke="${border}" stroke-width="1" />`;
+    }
+
+    svg.innerHTML = `
+      ${gridLines}
+      <path d="${area}" fill="${accentSoft}" stroke="none" />
+      <path d="${path}" fill="none" stroke="${accent}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />
+      <circle cx="${x(n)}" cy="${y(yearly[n])}" r="4" fill="${accent}" />
+      <text x="${x(0)}" y="${H-6}" font-size="11" text-anchor="start">Año 0</text>
+      <text x="${x(n)}" y="${H-6}" font-size="11" text-anchor="end">Año ${n}</text>
+    `;
+  }
+
+  function update(){
+    const P0 = parseFloat(inicial.value) || 0;
+    const monthly = parseFloat(aporte.value) || 0;
+    const rate = parseFloat(tasa.value) || 0;
+    const years = parseInt(anios.value, 10) || 1;
+
+    aniosLabel.textContent = years + (years === 1 ? ' año' : ' años');
+
+    const {balance, contributed, yearly} = simulate(P0, monthly, rate, years);
+
+    totalFinal.textContent = fmt.format(balance);
+    totalAportado.textContent = fmt.format(contributed);
+    totalInteres.textContent = fmt.format(balance - contributed);
+
+    drawChart(yearly);
+  }
+
+  [inicial, aporte, tasa, anios].forEach(el => el.addEventListener('input', update));
+  update();
+})();
+</script>
+</body>
+</html>
