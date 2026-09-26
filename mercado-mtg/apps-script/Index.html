@@ -61,7 +61,11 @@
   .toast.show{ opacity:1; transform:translateX(-50%) translateY(-4px); }
 
   /* ---------- auth gate ---------- */
-  .auth-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .auth-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; position:relative; isolation:isolate; }
+  /* fondo animado de la pantalla de ingreso (semi-transparente) */
+  #introBg{ position:fixed; inset:0; width:100%; height:100%; z-index:-1; opacity:.5; pointer-events:none; display:block; }
+  .auth-brand, .auth-note{ background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:8px 14px; align-self:center; }
+  .auth-note{ margin:0; }
   .auth-wrap{ width:100%; max-width:400px; display:flex; flex-direction:column; gap:18px; }
   .auth-brand{ display:flex; align-items:center; gap:12px; justify-content:center; }
   .auth-brand .mark{ width:42px; height:42px; border-radius:11px; background:var(--accent); color:var(--accent-ink); display:flex; align-items:center; justify-content:center; flex:none; }
@@ -187,6 +191,7 @@
 
 <!-- ---------- pantalla de acceso ---------- -->
 <div class="auth-screen" id="authScreen">
+  <canvas id="introBg" aria-hidden="true"></canvas>
   <div class="auth-wrap">
     <div class="auth-brand">
       <div class="mark" aria-hidden="true">
@@ -1061,6 +1066,441 @@
       clearToken();
     }).validarSesion(token);
   })();
+})();
+</script>
+<script>
+// Fondo animado de la pantalla de ingreso: escena original dibujada en canvas.
+// Sai lanza tópteros, Krenko manda su horda de goblins, Imotekh invoca relámpagos
+// y Golbez dispara rayos con sus cuatro cristales. Se detiene al entrar a la app.
+(function(){
+  "use strict";
+  var screenEl = document.getElementById("authScreen");
+  var canvas = document.getElementById("introBg");
+  if (!screenEl || !canvas || !canvas.getContext) return;
+  var ctx = canvas.getContext("2d");
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var W = 0, H = 0, S = 1, t = 0, last = 0, flash = 0, shield = 0;
+  var stars = [], thopters = [], goblins = [], sparks = [], bolts = [], beams = [];
+  var next = { thopter: 0.4, goblin: 0.2, bolt: 1.4, beam: 2.0 };
+  var P = {};
+  var CRYSTALS = ["#63d4ff", "#ff5d5d", "#63ff8f", "#ffd84a"];
+
+  function rnd(a, b){ return a + Math.random() * (b - a); }
+  function pick(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+  function circle(x, y, r){ ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); }
+  function ellipse(x, y, rx, ry){ ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); }
+  function line(pts){ ctx.beginPath(); ctx.moveTo(pts[0], pts[1]); for (var i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]); }
+  function glow(x, y, r, rgb, a){
+    var g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, "rgba(" + rgb + "," + a + ")");
+    g.addColorStop(1, "rgba(" + rgb + ",0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+
+  function resize(){
+    var dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    S = Math.max(0.5, Math.min(1.4, Math.min(W, H) / 720));
+    P.ground = H * 0.88;
+    P.sai = { x: W * 0.12, y: P.ground };
+    P.krenko = { x: W * 0.88, y: P.ground };
+    P.imotekh = { x: W * 0.85, y: H * 0.42 };
+    P.golbez = { x: W * 0.17, y: H * 0.34 };
+    stars = [];
+    for (var i = 0; i < 110; i++) stars.push({ x: Math.random() * W, y: Math.random() * H * 0.65, r: rnd(0.5, 1.7), p: rnd(0, 6.28) });
+  }
+
+  // ---------- posiciones útiles ----------
+  function imotekhY(){ return P.imotekh.y + Math.sin(t * 0.9) * 4 * S; }
+  function golbezY(){ return P.golbez.y + Math.sin(t * 1.3) * 7 * S; }
+  function staffTip(){ var k = S * 1.1; return { x: P.imotekh.x - 40 * k, y: imotekhY() - 124 * k }; }
+  function saiArm(){ return -0.5 + Math.sin(t * 3) * 0.12; }
+  function saiHand(){
+    var a = saiArm(), b = Math.sin(t * 2.2) * 2 * S;
+    return { x: P.sai.x + S * (7 + Math.cos(a) * 32), y: P.sai.y + b + S * (-66 + Math.sin(a) * 32) };
+  }
+  function crystalAngle(i){ return t * 1.1 + i * Math.PI / 2; }
+  function crystalPos(i){
+    var a = crystalAngle(i);
+    return { x: P.golbez.x + Math.cos(a) * 64 * S, y: golbezY() - 58 * S + Math.sin(a) * 22 * S };
+  }
+  function targetPos(tg){
+    if (tg.type === "goblin") return { x: tg.g.x, y: tg.g.y - tg.g.hop - 12 * S };
+    if (tg.type === "golbez") return { x: P.golbez.x, y: golbezY() - 62 * S };
+    if (tg.type === "imotekh") return { x: P.imotekh.x, y: imotekhY() - 70 * S };
+    if (tg.type === "krenko") return { x: P.krenko.x, y: P.krenko.y - 42 * S };
+    return { x: P.sai.x, y: P.sai.y - 50 * S };
+  }
+
+  // ---------- efectos ----------
+  function burst(x, y, color, n){
+    for (var i = 0; i < n; i++){
+      var life = rnd(0.35, 0.9);
+      sparks.push({ x: x, y: y, vx: rnd(-1, 1) * 150 * S, vy: rnd(-1.3, 0.6) * 150 * S, life: life, max: life, c: color, r: rnd(1, 2.8) * S });
+    }
+  }
+  function killGoblin(g){
+    if (g.dead) return;
+    g.dead = true;
+    burst(g.x, g.y - 12 * S, "#8fd14f", 12);
+  }
+  function makeBolt(a, b){
+    var pts = [a], n = 9;
+    for (var i = 1; i < n; i++){
+      var f = i / n;
+      pts.push({ x: a.x + (b.x - a.x) * f + rnd(-18, 18) * S, y: a.y + (b.y - a.y) * f + rnd(-18, 18) * S });
+    }
+    pts.push(b);
+    return pts;
+  }
+  function liveGoblins(){ return goblins.filter(function(g){ return !g.dead; }); }
+
+  // ---------- acciones de cada personaje ----------
+  function spawnThopter(){
+    var h = saiHand(), alive = liveGoblins(), r = Math.random(), tg;
+    if (alive.length && r < 0.5) tg = { type: "goblin", g: pick(alive) };
+    else tg = { type: r < 0.75 ? "golbez" : "imotekh" };
+    thopters.push({ x: h.x, y: h.y, vx: rnd(60, 120) * S, vy: rnd(-90, -30) * S, phase: rnd(0, 6), tg: tg, age: 0 });
+    burst(h.x, h.y, "#8fd8ff", 5);
+  }
+  function spawnGoblin(){
+    goblins.push({ x: P.krenko.x - 24 * S, y: P.ground, vx: -rnd(50, 95) * S, phase: rnd(0, 6), hop: 0, vh: 0, dead: false });
+  }
+  function fireBolt(){
+    var a = staffTip(), r = Math.random(), p;
+    if (thopters.length && r < 0.5){
+      var o = pick(thopters);
+      p = { x: o.x, y: o.y };
+      thopters.splice(thopters.indexOf(o), 1);
+    } else if (r < 0.75) p = targetPos({ type: "golbez" });
+    else p = targetPos({ type: "sai" });
+    bolts.push({ pts: makeBolt(a, p), life: 0.35, max: 0.35 });
+    burst(p.x, p.y, "#8dffb0", 16);
+    flash = 0.35;
+  }
+  function fireBeam(){
+    var i = Math.floor(Math.random() * 4), alive = liveGoblins(), r = Math.random(), p;
+    if (alive.length && r < 0.4){
+      var g = pick(alive);
+      p = targetPos({ type: "goblin", g: g });
+      killGoblin(g);
+    } else if (r < 0.8) p = targetPos({ type: "imotekh" });
+    else p = targetPos({ type: "krenko" });
+    beams.push({ i: i, to: p, life: 0.5, max: 0.5 });
+    burst(p.x, p.y, CRYSTALS[i], 16);
+  }
+
+  function step(dt){
+    t += dt;
+    flash = Math.max(0, flash - dt * 2.5);
+    shield = Math.max(0, shield - dt * 2);
+
+    next.thopter -= dt; if (next.thopter <= 0 && thopters.length < 12){ spawnThopter(); next.thopter = rnd(0.5, 1.0); }
+    next.goblin -= dt; if (next.goblin <= 0 && goblins.length < 14){ spawnGoblin(); next.goblin = rnd(0.4, 0.9); }
+    next.bolt -= dt; if (next.bolt <= 0){ fireBolt(); next.bolt = rnd(1.2, 2.2); }
+    next.beam -= dt; if (next.beam <= 0){ fireBeam(); next.beam = rnd(1.6, 2.6); }
+
+    for (var i = thopters.length - 1; i >= 0; i--){
+      var o = thopters[i];
+      o.age += dt; o.phase += dt * 32;
+      if (o.tg.type === "goblin" && o.tg.g.dead) o.tg = { type: "krenko" };
+      var p = targetPos(o.tg), dx = p.x - o.x, dy = p.y - o.y, d = Math.sqrt(dx * dx + dy * dy) || 1, sp = 190 * S, k = Math.min(1, dt * 2.4);
+      o.vx += (dx / d * sp - o.vx) * k;
+      o.vy += (dy / d * sp - o.vy) * k + Math.sin(o.age * 9) * 20 * S * dt;
+      o.x += o.vx * dt; o.y += o.vy * dt;
+      if (d < 16 * S){
+        burst(o.x, o.y, "#ffcf6a", 14);
+        if (o.tg.type === "goblin") killGoblin(o.tg.g);
+        thopters.splice(i, 1);
+      } else if (o.age > 9) thopters.splice(i, 1);
+    }
+
+    for (var j = goblins.length - 1; j >= 0; j--){
+      var g = goblins[j];
+      if (g.dead){ goblins.splice(j, 1); continue; }
+      g.phase += dt * 14;
+      g.x += g.vx * dt;
+      if (g.hop > 0 || g.vh > 0){
+        g.vh -= 520 * S * dt;
+        g.hop = Math.max(0, g.hop + g.vh * dt);
+        if (g.hop === 0) g.vh = 0;
+      } else if (Math.random() < dt * 0.5) g.vh = rnd(140, 210) * S;
+      if (g.x < P.sai.x + 50 * S){
+        burst(g.x, g.y - 14 * S, "#7fd3ff", 10);
+        shield = 0.5;
+        g.dead = true;
+      }
+    }
+
+    [bolts, beams, sparks].forEach(function(list){
+      for (var n = list.length - 1; n >= 0; n--){
+        var e = list[n];
+        e.life -= dt;
+        if (e.vx !== undefined){ e.x += e.vx * dt; e.y += e.vy * dt; e.vy += 260 * S * dt; }
+        if (e.life <= 0) list.splice(n, 1);
+      }
+    });
+  }
+
+  // ---------- dibujo ----------
+  function drawBackground(){
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "#0b0820"); g.addColorStop(0.55, "#1d1438"); g.addColorStop(1, "#2a1a2e");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+    var mx = W * 0.5, my = H * 0.15, mr = 44 * S;
+    glow(mx, my, mr * 3.2, "220,210,255", 0.3);
+    ctx.fillStyle = "#e9e4ff"; circle(mx, my, mr); ctx.fill();
+    ctx.fillStyle = "rgba(160,150,210,.35)"; circle(mx - mr * 0.3, my - mr * 0.2, mr * 0.22); ctx.fill();
+    circle(mx + mr * 0.35, my + mr * 0.25, mr * 0.14); ctx.fill();
+
+    for (var i = 0; i < stars.length; i++){
+      var s = stars[i];
+      ctx.fillStyle = "rgba(255,255,255," + (0.35 + 0.6 * Math.abs(Math.sin(t * 1.4 + s.p))) + ")";
+      ctx.fillRect(s.x, s.y, s.r, s.r);
+    }
+
+    var horizon = H * 0.74;
+    ctx.fillStyle = "#150f26";
+    for (var x = 0; x < W + 80; x += 60 * S){
+      var h = (0.5 + 0.5 * Math.sin(x * 0.037 + 1.3)) * 90 * S + 30 * S;
+      ctx.fillRect(x, horizon - h, 44 * S, h);
+      if (Math.sin(x * 0.051) > 0.55){
+        ctx.beginPath(); ctx.moveTo(x, horizon - h); ctx.lineTo(x + 22 * S, horizon - h - 40 * S); ctx.lineTo(x + 44 * S, horizon - h); ctx.fill();
+      }
+    }
+    var gg = ctx.createLinearGradient(0, horizon, 0, H);
+    gg.addColorStop(0, "#1a1128"); gg.addColorStop(1, "#0a0710");
+    ctx.fillStyle = gg; ctx.fillRect(0, horizon, W, H - horizon);
+    var fog = ctx.createLinearGradient(0, P.ground - 50 * S, 0, P.ground + 20 * S);
+    fog.addColorStop(0, "rgba(120,80,180,0)"); fog.addColorStop(0.6, "rgba(120,80,180,.18)"); fog.addColorStop(1, "rgba(120,80,180,0)");
+    ctx.fillStyle = fog; ctx.fillRect(0, P.ground - 50 * S, W, 70 * S);
+  }
+
+  function drawGear(cx, cy, r, teeth, rot, color){
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot); ctx.fillStyle = color;
+    for (var i = 0; i < teeth; i++){ ctx.rotate(Math.PI * 2 / teeth); ctx.fillRect(-2, -r - 3, 4, 6); }
+    circle(0, 0, r); ctx.fill();
+    ctx.fillStyle = "#3a2a14"; circle(0, 0, r * 0.35); ctx.fill();
+    ctx.restore();
+  }
+
+  // Sai, maestro de tópteros: artífice de túnica azul, gafas de latón y engranaje a la espalda.
+  function drawSai(){
+    var b = Math.sin(t * 2.2) * 2;
+    ctx.save(); ctx.translate(P.sai.x, P.sai.y); ctx.scale(S, S);
+    ctx.fillStyle = "rgba(0,0,0,.35)"; ellipse(0, 0, 26, 6); ctx.fill();
+    ctx.translate(0, b);
+    drawGear(-18, -64, 11, 8, t * 1.5, "#b8893a");
+    ctx.fillStyle = "#13335f"; line([-14,-72, 14,-72, 24,-3, -26,-2]); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#2463b0"; line([-11,-72, 11,-72, 19,0, -19,0]); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "#c9a24a"; ctx.lineWidth = 2; line([0,-70, 0,0]); ctx.stroke();
+    ctx.fillStyle = "#c9a24a"; ctx.fillRect(-12, -46, 24, 4);
+    ctx.save(); ctx.translate(7, -66); ctx.rotate(saiArm());
+    ctx.fillStyle = "#2463b0"; ctx.fillRect(0, -4, 30, 8);
+    ctx.fillStyle = "#e0b48a"; circle(32, 0, 4.5); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = "#e0b48a"; circle(0, -82, 10); ctx.fill();
+    ctx.fillStyle = "#2c1f16"; ctx.beginPath(); ctx.arc(0, -84, 11, Math.PI * 0.95, Math.PI * 2.05); ctx.fill();
+    ctx.strokeStyle = "#d4a84a"; ctx.lineWidth = 2;
+    circle(-3, -90, 3.4); ctx.stroke(); circle(5, -90, 3.4); ctx.stroke();
+    ctx.fillStyle = "#7fd3ff"; circle(-3, -90, 2); ctx.fill(); circle(5, -90, 2); ctx.fill();
+    ctx.restore();
+    var hnd = saiHand();
+    glow(hnd.x, hnd.y, 18 * S, "120,210,255", 0.85);
+    if (shield > 0){
+      ctx.save(); ctx.globalAlpha = shield * 1.6; ctx.strokeStyle = "#8fdcff"; ctx.lineWidth = 3 * S;
+      ctx.shadowColor = "#8fdcff"; ctx.shadowBlur = 16;
+      ctx.beginPath(); ctx.arc(P.sai.x, P.sai.y - 44 * S, 58 * S, -1.1, 1.1); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // Krenko, jefe de la mafia: goblin con corona, bufanda roja, garrote y gritando órdenes.
+  function drawKrenko(){
+    var k = S * 1.05, yell = Math.abs(Math.sin(t * 6));
+    ctx.save(); ctx.translate(P.krenko.x, P.krenko.y); ctx.scale(k, k);
+    ctx.fillStyle = "rgba(0,0,0,.35)"; ellipse(0, 0, 22, 5); ctx.fill();
+    ctx.rotate(Math.sin(t * 4) * 0.05);
+    ctx.fillStyle = "#3a2616"; ctx.fillRect(-8, -16, 6, 16); ctx.fillRect(3, -16, 6, 16);
+    ctx.fillStyle = "#6f9a3a"; ellipse(-7, 0, 5, 2.5); ctx.fill(); ellipse(6, 0, 5, 2.5); ctx.fill();
+    ctx.fillStyle = "#6b4424"; ellipse(0, -28, 13, 15); ctx.fill();
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#6f9a3a"; ctx.lineWidth = 5; line([8,-34, 18,-22]); ctx.stroke();
+    ctx.strokeStyle = "#7a5230"; ctx.lineWidth = 5; line([18,-22, 24,-50]); ctx.stroke();
+    ctx.strokeStyle = "#6f9a3a"; ctx.lineWidth = 5; line([-8,-36, -30,-46 + Math.sin(t * 6) * 4]); ctx.stroke();
+    ctx.fillStyle = "#b3261e"; ellipse(0, -41, 11, 4); ctx.fill();
+    line([6,-41, 17,-33, 8,-36]); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#6f9a3a"; ellipse(0, -56, 13, 11); ctx.fill();
+    var e = Math.sin(t * 5) * 2;
+    line([-10,-60, -34,-68 + e, -11,-52]); ctx.closePath(); ctx.fill();
+    line([10,-60, 32,-70 - e, 11,-52]); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#557a2a";
+    line([-12,-58, -27,-65 + e, -12,-54]); ctx.closePath(); ctx.fill();
+    line([12,-58, 26,-66 - e, 12,-54]); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#ffd23a"; circle(-5, -58, 2.6); ctx.fill(); circle(4, -58, 2.6); ctx.fill();
+    ctx.fillStyle = "#1a0d05"; circle(-5.8, -58, 1.1); ctx.fill(); circle(3.2, -58, 1.1); ctx.fill();
+    ctx.fillStyle = "#5c8530"; ellipse(-3, -53, 3, 2); ctx.fill();
+    ctx.fillStyle = "#2a0f0a"; ellipse(-2, -48, 5, 2.5 + yell * 2); ctx.fill();
+    ctx.fillStyle = "#f3ead2"; ctx.fillRect(-5, -50.5, 2, 2); ctx.fillRect(0, -50.5, 2, 2);
+    ctx.fillStyle = "#e0b640"; line([-9,-65, -9,-73, -5,-69, 0,-76, 5,-69, 9,-73, 9,-65]); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawGoblin(g){
+    var leg = Math.sin(g.phase) * 6;
+    ctx.save(); ctx.translate(g.x, g.y); ctx.scale(S * 0.55, S * 0.55);
+    ctx.fillStyle = "rgba(0,0,0,.3)"; ellipse(0, 0, 12, 3); ctx.fill();
+    ctx.translate(0, -g.hop / (S * 0.55));
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#3a2616"; ctx.lineWidth = 4;
+    line([0,-14, -4 + leg,0]); ctx.stroke(); line([0,-14, 4 - leg,0]); ctx.stroke();
+    ctx.fillStyle = "#5a3a1f"; ellipse(0, -22, 8, 10); ctx.fill();
+    ctx.fillStyle = "#7aa63f"; ellipse(-2, -36, 9, 8); ctx.fill();
+    line([-8,-38, -22,-44, -8,-33]); ctx.closePath(); ctx.fill();
+    line([5,-38, 17,-45, 6,-33]); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#ffd23a"; circle(-6, -37, 1.8); ctx.fill();
+    ctx.strokeStyle = "#8a6a3a"; ctx.lineWidth = 2.5; line([4,-30, -26,-40]); ctx.stroke();
+    ctx.fillStyle = "#c9ced6"; line([-26,-43, -33,-41, -25,-37]); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  // Imotekh, señor de las tormentas: rey metálico con tocado dorado y bastón de luz verde.
+  function drawImotekh(){
+    var k = S * 1.1, y = imotekhY();
+    ctx.save(); ctx.translate(P.imotekh.x, y); ctx.scale(k, k);
+    glow(0, 8, 50, "80,255,140", 0.18);
+    ctx.fillStyle = "#241d2e"; line([-44,0, 44,0, 30,16, -30,16]); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "rgba(80,255,140,.6)"; ctx.lineWidth = 1.5; line([-30,6, 30,6]); ctx.stroke();
+    ctx.fillStyle = "#161a18"; line([-16,-80, 16,-80, 26,-2, -26,-2]); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "#a7b0ac"; ctx.lineWidth = 3; ctx.lineCap = "round";
+    line([-6,-40, -9,-2]); ctx.stroke(); line([6,-40, 9,-2]); ctx.stroke();
+    ctx.fillStyle = "#8b9591"; line([-13,-80, 13,-80, 9,-44, -9,-44]); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "#4e5653"; ctx.lineWidth = 1.5;
+    for (var yy = -74; yy < -48; yy += 6){ line([-10,yy, 10,yy]); ctx.stroke(); }
+    glow(0, -62, 12, "80,255,140", 0.8);
+    ctx.fillStyle = "#b6ffd0"; circle(0, -62, 3); ctx.fill();
+    ctx.fillStyle = "#c9a44a"; ellipse(-14, -80, 7, 4); ctx.fill(); ellipse(14, -80, 7, 4); ctx.fill();
+    ctx.strokeStyle = "#c9a44a"; ctx.lineWidth = 3; line([-34,-10, -40,-118]); ctx.stroke();
+    ctx.beginPath(); ctx.arc(-40, -124, 7, Math.PI * 0.2, Math.PI * 1.8); ctx.stroke();
+    ctx.strokeStyle = "#a7b0ac"; line([-12,-78, -26,-64, -37,-74]); ctx.stroke();
+    glow(-40, -124, 20 + Math.sin(t * 8) * 3, "80,255,140", 0.9);
+    ctx.fillStyle = "#e6fff0"; circle(-40, -124, 3.5); ctx.fill();
+    ctx.fillStyle = "#c9a44a"; line([-11,-90, 11,-90, 15,-74, -15,-74]); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "#2b3a8a"; ctx.lineWidth = 1.2;
+    line([-12,-84, 12,-84]); ctx.stroke(); line([-13,-79, 13,-79]); ctx.stroke();
+    ctx.fillStyle = "#b9c2be"; ellipse(0, -94, 8, 10); ctx.fill();
+    ctx.fillStyle = "#838c88"; ctx.fillRect(-5, -87, 10, 4);
+    glow(0, -95, 9, "80,255,140", 0.7);
+    ctx.fillStyle = "#b6ffd0"; ctx.fillRect(-5, -96, 3.5, 2); ctx.fillRect(1.5, -96, 3.5, 2);
+    ctx.fillStyle = "#c9a44a"; line([-7,-102, 0,-126, 7,-102]); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "#c9a44a"; ctx.lineWidth = 1.5;
+    line([0,-102, -15,-120]); ctx.stroke(); line([0,-102, 15,-120]); ctx.stroke();
+    ctx.restore();
+  }
+
+  // Golbez, coleccionista de cristales: armadura oscura con cuernos, capa ondeante y aura violeta.
+  function drawGolbez(){
+    var k = S * 1.05, w1 = Math.sin(t * 2) * 6, w2 = Math.sin(t * 2 + 1.4) * 8;
+    ctx.save(); ctx.translate(P.golbez.x, golbezY()); ctx.scale(k, k);
+    glow(0, -60, 85, "150,90,255", 0.3);
+    ctx.fillStyle = "#120c1c";
+    ctx.beginPath(); ctx.moveTo(-16, -92);
+    ctx.bezierCurveTo(-40, -60, -44 + w1, -20, -38 + w2, 10);
+    ctx.lineTo(-10 + w1, 4); ctx.lineTo(18 + w2, 12);
+    ctx.bezierCurveTo(30, -20, 30, -60, 16, -92); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#3a2156";
+    ctx.beginPath(); ctx.moveTo(-12, -86);
+    ctx.bezierCurveTo(-30, -58, -32 + w1, -22, -28 + w2, 2);
+    ctx.lineTo(-8 + w1, -2); ctx.bezierCurveTo(-4, -40, -6, -70, -12, -86); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#2c2a3d"; ctx.fillRect(-10, -40, 8, 34); ctx.fillRect(3, -40, 8, 34);
+    ctx.fillStyle = "#35334a"; line([-16,-86, 16,-86, 11,-40, -11,-40]); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "#6b5a9a"; ctx.lineWidth = 1.5; line([-10,-78, 0,-64, 10,-78]); ctx.stroke();
+    ctx.fillStyle = "#4a4466"; ellipse(-18, -84, 10, 7); ctx.fill(); ellipse(18, -84, 10, 7); ctx.fill();
+    ctx.strokeStyle = "#8a78c0"; ctx.lineWidth = 1;
+    ellipse(-18, -84, 10, 7); ctx.stroke(); ellipse(18, -84, 10, 7); ctx.stroke();
+    ctx.strokeStyle = "#35334a"; ctx.lineWidth = 6; ctx.lineCap = "round";
+    line([16,-80, 34,-70, 44,-78]); ctx.stroke();
+    glow(46, -79, 14, "200,130,255", 0.9);
+    ctx.fillStyle = "#4a4466";
+    ctx.beginPath(); ctx.moveTo(-8, -104); ctx.quadraticCurveTo(-24, -112, -20, -130); ctx.quadraticCurveTo(-16, -114, -4, -108); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(8, -104); ctx.quadraticCurveTo(24, -112, 20, -130); ctx.quadraticCurveTo(16, -114, 4, -108); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#2a2840"; ctx.beginPath(); ctx.arc(0, -98, 11, Math.PI, 0); ctx.lineTo(10, -88); ctx.lineTo(-10, -88); ctx.closePath(); ctx.fill();
+    glow(0, -96, 11, "190,120,255", 0.8);
+    ctx.fillStyle = "#e0b8ff"; ctx.fillRect(-7, -97, 14, 2.5);
+    ctx.restore();
+  }
+
+  function drawCrystal(i){
+    var p = crystalPos(i), c = CRYSTALS[i];
+    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(Math.sin(t * 2 + i) * 0.2); ctx.scale(S, S);
+    ctx.shadowColor = c; ctx.shadowBlur = 14; ctx.fillStyle = c;
+    line([0,-14, 6,0, 0,14, -6,0]); ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 0; ctx.fillStyle = "rgba(255,255,255,.55)";
+    line([0,-14, 3,-2, 0,4, -2,-2]); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawThopter(o){
+    var span = 4 + Math.abs(Math.sin(o.phase)) * 8;
+    ctx.save(); ctx.translate(o.x, o.y); ctx.rotate(Math.atan2(o.vy, o.vx)); ctx.scale(S * 0.8, S * 0.8);
+    ctx.fillStyle = "rgba(200,230,255,.8)";
+    ellipse(-2, -span / 2 - 2, 7, span / 2); ctx.fill(); ellipse(-2, span / 2 + 2, 7, span / 2); ctx.fill();
+    ctx.fillStyle = "#c08f3e"; ellipse(0, 0, 9, 3.5); ctx.fill();
+    ctx.fillStyle = "#8a6428"; line([-9,0, -15,-3, -15,3]); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#7fe0ff"; circle(6, 0, 1.8); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawZap(pts, color, glowColor, width, alpha){
+    ctx.save(); ctx.globalAlpha = alpha; ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+    for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.shadowColor = glowColor; ctx.shadowBlur = 20; ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke();
+    ctx.shadowBlur = 0; ctx.strokeStyle = "#ffffff"; ctx.lineWidth = Math.max(1, width * 0.35); ctx.stroke();
+    ctx.restore();
+  }
+
+  function draw(){
+    drawBackground();
+    drawImotekh();
+    var i;
+    for (i = 0; i < 4; i++) if (Math.sin(crystalAngle(i)) < 0) drawCrystal(i);
+    drawGolbez();
+    for (i = 0; i < 4; i++) if (Math.sin(crystalAngle(i)) >= 0) drawCrystal(i);
+    drawSai();
+    drawKrenko();
+    goblins.forEach(drawGoblin);
+    thopters.forEach(drawThopter);
+    beams.forEach(function(b){ drawZap([crystalPos(b.i), b.to], CRYSTALS[b.i], CRYSTALS[b.i], 6 * S * (b.life / b.max) + 1, b.life / b.max); });
+    bolts.forEach(function(b){ drawZap(b.pts, "#7dffab", "#3dff7a", 4 * S, b.life / b.max); });
+    sparks.forEach(function(s){
+      ctx.globalAlpha = Math.max(0, s.life / s.max);
+      ctx.fillStyle = s.c; ctx.fillRect(s.x, s.y, s.r, s.r);
+    });
+    ctx.globalAlpha = 1;
+    if (flash > 0){ ctx.fillStyle = "rgba(140,255,180," + (flash * 0.25) + ")"; ctx.fillRect(0, 0, W, H); }
+  }
+
+  function frame(now){
+    if (screenEl.hidden) return; // ya entró a la app: se apaga la animación
+    var dt = last ? Math.min(0.05, (now - last) / 1000) : 0.016;
+    last = now;
+    step(dt); draw();
+    requestAnimationFrame(frame);
+  }
+
+  resize();
+  window.addEventListener("resize", resize);
+  if (reduce){
+    for (var n = 0; n < 180; n++) step(1 / 60);
+    draw();
+  } else {
+    requestAnimationFrame(frame);
+  }
 })();
 </script>
 </body>
