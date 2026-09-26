@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mercado MTG</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Public+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    color-scheme: light;
+    --bg:#faf9fc; --surface:#ffffff; --surface-2:#f4f1fa;
+    --text:#161320; --text-2:#524d63; --muted:#8b8598;
+    --border:rgba(22,19,32,0.12);
+    --accent:#6c4fd6; --accent-ink:#ffffff;
+    --price:#a9780a; --danger:#c0392b; --good:#1e8e5a;
+    --font-head:'Cinzel', Georgia, serif;
+    --font-body:'Public Sans', system-ui, -apple-system, "Segoe UI", sans-serif;
+    --radius:14px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      color-scheme: dark;
+      --bg:#131019; --surface:#1c1728; --surface-2:#221c30;
+      --text:#f3f1fa; --text-2:#c7c0d6; --muted:#9089a3;
+      --border:rgba(255,255,255,0.14);
+      --accent:#9c86ea; --accent-ink:#161320;
+      --price:#e0b23c; --danger:#e57368; --good:#4fce93;
+    }
+  }
+  *{ box-sizing:border-box; }
+  [hidden]{ display:none !important; }
+  html,body{ margin:0; background:var(--bg); color:var(--text); font-family:var(--font-body); font-size:14px; line-height:1.45; }
+  a{ color:var(--accent); }
+  h1,h2,h3{ font-family:var(--font-head); font-weight:700; margin:0; letter-spacing:.01em; }
+
+  .btn{ display:inline-flex; align-items:center; gap:8px; border-radius:10px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); padding:10px 16px; font-weight:700; font-size:13px; white-space:nowrap; cursor:pointer; font-family:var(--font-body); }
+  .btn:hover{ border-color:var(--accent); }
+  .btn.primary{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .btn.primary:hover{ filter:brightness(1.06); }
+  .btn.whatsapp{ background:#25d366; color:#08320f; border-color:#25d366; }
+  .btn.whatsapp:hover{ filter:brightness(1.05); }
+  .btn:disabled{ opacity:.5; cursor:not-allowed; }
+  .btn.small{ padding:7px 11px; font-size:12px; }
+  .btn.block{ width:100%; justify-content:center; }
+
+  .field{ display:flex; flex-direction:column; gap:6px; position:relative; }
+  .field label{ font-size:12px; font-weight:700; color:var(--text-2); }
+  select, input[type="text"], input[type="search"], input[type="tel"], input[type="password"]{
+    font-family:var(--font-body); font-size:14px; color:var(--text); background:var(--surface-2);
+    border:1px solid var(--border); border-radius:10px; padding:10px 12px; width:100%;
+  }
+  select:focus, input:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  .form-msg{ font-size:12px; font-weight:600; color:var(--danger); min-height:16px; }
+
+  .card{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:20px; }
+  .card > h2{ font-size:16px; margin-bottom:4px; }
+  .card > .hint{ color:var(--text-2); font-size:12.5px; margin-bottom:16px; display:block; }
+
+  .toast{ position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--text); color:var(--bg); padding:10px 16px; border-radius:10px; font-size:13px; font-weight:600; z-index:80; opacity:0; pointer-events:none; transition:opacity .18s, transform .18s; }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(-4px); }
+
+  /* ---------- auth gate ---------- */
+  .auth-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .auth-wrap{ width:100%; max-width:400px; display:flex; flex-direction:column; gap:18px; }
+  .auth-brand{ display:flex; align-items:center; gap:12px; justify-content:center; }
+  .auth-brand .mark{ width:42px; height:42px; border-radius:11px; background:var(--accent); color:var(--accent-ink); display:flex; align-items:center; justify-content:center; flex:none; }
+  .auth-brand h1{ font-size:22px; }
+  .auth-tabs{ display:flex; gap:8px; }
+  .auth-tabs button{ flex:1; }
+  .auth-tabs button.active{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .auth-note{ text-align:center; color:var(--muted); font-size:12px; }
+
+  /* ---------- app shell ---------- */
+  .app-shell{ display:flex; gap:24px; align-items:flex-start; max-width:1200px; margin:0 auto; padding:20px 20px 64px; }
+  .sidenav{ width:200px; flex:none; display:flex; flex-direction:column; gap:4px; position:sticky; top:20px; }
+  .sidenav .brand{ display:flex; align-items:center; gap:10px; padding:6px 8px 16px; }
+  .sidenav .brand .mark{ width:34px; height:34px; border-radius:9px; background:var(--accent); color:var(--accent-ink); display:flex; align-items:center; justify-content:center; flex:none; }
+  .sidenav .brand h1{ font-size:16px; }
+  .nav-btn{ text-align:left; padding:11px 14px; border-radius:10px; border:1px solid transparent; background:none; font-weight:700; font-size:13.5px; color:var(--text-2); cursor:pointer; font-family:var(--font-body); }
+  .nav-btn:hover{ background:var(--surface-2); }
+  .nav-btn.active{ background:var(--accent); color:var(--accent-ink); }
+  .user-box{ margin-top:16px; padding-top:16px; border-top:1px solid var(--border); font-size:12px; color:var(--text-2); display:flex; flex-direction:column; gap:8px; }
+  .user-box .who{ font-weight:700; color:var(--text); }
+  .main-col{ flex:1; min-width:0; display:flex; flex-direction:column; gap:22px; }
+  @media (max-width:860px){
+    .app-shell{ flex-direction:column; padding:14px 14px 56px; }
+    .sidenav{ width:100%; flex-direction:row; align-items:center; overflow-x:auto; position:static; gap:6px; }
+    .sidenav .brand{ padding:4px 8px 4px 0; }
+    .user-box{ margin-top:0; padding-top:0; border-top:none; border-left:1px solid var(--border); padding-left:10px; flex-direction:row; align-items:center; gap:10px; margin-left:auto; flex:none; }
+  }
+
+  /* ---------- venta: buscar/publicar ---------- */
+  .search-row{ display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; }
+  .search-row .field{ flex:1 1 280px; }
+  .suggest{ position:absolute; top:100%; left:0; right:0; margin-top:4px; background:var(--surface-2); border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.16); z-index:20; max-height:280px; overflow-y:auto; padding:6px; }
+  .suggest[hidden]{ display:none; }
+  .suggest button{ display:block; width:100%; text-align:left; background:none; border:none; border-radius:8px; padding:9px 10px; font-size:13.5px; color:var(--text); font-family:var(--font-body); cursor:pointer; }
+  .suggest button:hover, .suggest button.active{ background:var(--bg); }
+
+  .preview{ display:flex; gap:18px; margin-top:16px; flex-wrap:wrap; }
+  .preview img{ width:150px; border-radius:10px; border:1px solid var(--border); flex:none; }
+  .preview .info{ flex:1 1 260px; min-width:240px; }
+  .preview .info h3{ font-size:18px; }
+  .preview .info .set{ color:var(--text-2); font-size:12.5px; margin-top:2px; }
+  .preview .edicion-row{ display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; align-items:flex-end; }
+  .preview .edicion-row .field{ flex:1 1 220px; }
+  .foil-toggle{ display:flex; align-items:center; gap:7px; font-size:12.5px; font-weight:700; color:var(--text-2); white-space:nowrap; padding-bottom:10px; }
+  .foil-toggle input{ width:16px; height:16px; accent-color:var(--accent); }
+  .foil-toggle.disabled{ opacity:.4; }
+  .preview .ref-price{ margin-top:12px; padding:12px 14px; background:var(--surface-2); border-radius:10px; font-size:13px; }
+  .preview .ref-price .big{ font-family:var(--font-head); font-size:20px; color:var(--price); margin-top:2px; }
+  .preview .ref-price .sub{ color:var(--muted); font-size:11.5px; margin-top:3px; }
+  .foil-tag{ display:inline-flex; align-items:center; gap:3px; font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:999px; background:linear-gradient(135deg,#a78bfa,#f0abfc,#fbbf24); color:#1c1033; margin-left:6px; }
+
+  .publish-form{ margin-top:16px; display:grid; grid-template-columns: repeat(3,1fr); gap:12px; align-items:end; }
+  @media (max-width:700px){ .publish-form{ grid-template-columns:1fr; } }
+
+  textarea.moxfield-input{ font-family:ui-monospace,Consolas,monospace; font-size:12.5px; color:var(--text); background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:10px 12px; width:100%; min-height:110px; resize:vertical; }
+  textarea.moxfield-input:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  .import-actions{ display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+  .import-summary{ font-size:12.5px; color:var(--text-2); margin-top:10px; }
+  .import-summary .warn{ color:var(--danger); }
+  .not-found-box{ margin-top:12px; padding:10px 12px; background:var(--surface-2); border:1px solid var(--border); border-radius:10px; font-size:12px; color:var(--text-2); max-height:120px; overflow-y:auto; }
+
+  .row-table{ margin-top:16px; border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .row-table .r{ display:grid; grid-template-columns:48px 1fr 90px 130px auto; gap:10px; align-items:center; padding:9px 12px; border-bottom:1px solid var(--border); background:var(--surface-2); }
+  .row-table .r:last-child{ border-bottom:none; }
+  .row-table .r.head{ font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--text-2); background:var(--surface); }
+  .row-table .r img{ width:38px; height:53px; object-fit:cover; border-radius:5px; border:1px solid var(--border); background:var(--bg); }
+  .row-table .rname{ font-size:12.5px; font-weight:600; line-height:1.25; }
+  .row-table .rset{ font-size:11px; color:var(--muted); }
+  .row-table .rqty{ font-size:12px; color:var(--text-2); text-align:center; }
+  .row-table input[type="text"]{ padding:6px 8px; font-size:12.5px; }
+  .row-table select{ padding:6px 8px; font-size:12.5px; }
+  .row-table .rprice-wrap{ display:flex; align-items:center; gap:6px; }
+  .row-table .ractions{ display:flex; gap:6px; }
+  @media (max-width:760px){ .row-table .r{ grid-template-columns:40px 1fr; row-gap:6px; } .row-table .r.head{ display:none; } .row-table .rqty,.row-table .rprice-wrap,.row-table .ractions{ grid-column:2; } }
+
+  /* ---------- compra ---------- */
+  .listings-toolbar{ display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px; }
+  .listings-toolbar .field{ flex:1 1 260px; }
+  .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:14px; }
+  .listing{ border:1px solid var(--border); border-radius:12px; overflow:hidden; background:var(--surface-2); display:flex; flex-direction:column; position:relative; }
+  .listing.own{ opacity:.6; }
+  .listing.own img{ filter:grayscale(75%); }
+  .listing img{ width:100%; aspect-ratio:5/7; object-fit:cover; background:var(--bg); }
+  .listing .body{ padding:12px 14px; display:flex; flex-direction:column; gap:6px; flex:1; }
+  .listing .name{ font-weight:700; font-size:13.5px; line-height:1.25; }
+  .listing .set{ color:var(--text-2); font-size:11.5px; }
+  .listing .cond{ display:inline-block; align-self:flex-start; font-size:10.5px; font-weight:700; padding:3px 8px; border-radius:999px; background:var(--bg); border:1px solid var(--border); color:var(--text-2); }
+  .listing .price{ font-family:var(--font-head); color:var(--price); font-size:19px; margin-top:2px; }
+  .listing .spacer{ flex:1; }
+  .listing .qty{ position:absolute; top:8px; right:8px; background:var(--accent); color:var(--accent-ink); font-size:11px; font-weight:700; padding:2px 7px; border-radius:999px; }
+  .listing .own-tag{ position:absolute; top:8px; left:8px; background:var(--text); color:var(--bg); font-size:10.5px; font-weight:700; padding:3px 8px; border-radius:999px; }
+  .empty-state{ padding:30px 10px; text-align:center; color:var(--muted); font-size:13px; grid-column:1/-1; }
+
+  /* ---------- social ---------- */
+  .group-info{ font-size:12.5px; color:var(--text-2); margin-bottom:12px; }
+  .group-info strong{ color:var(--text); }
+  .location-form{ display:grid; grid-template-columns:1fr 1fr auto; gap:12px; align-items:end; }
+  @media (max-width:700px){ .location-form{ grid-template-columns:1fr; } }
+  .chat-messages{ max-height:400px; overflow-y:auto; display:flex; flex-direction:column; gap:9px; padding:14px; background:var(--surface-2); border-radius:10px; border:1px solid var(--border); }
+  .chat-msg{ font-size:13px; line-height:1.35; }
+  .chat-msg .nick{ font-weight:700; color:var(--accent); margin-right:6px; }
+  .chat-msg.me .nick{ color:var(--price); }
+  .chat-msg .time{ color:var(--muted); font-size:10.5px; margin-left:6px; }
+  .chat-input-row{ display:flex; gap:8px; margin-top:12px; }
+  .chat-input-row input{ flex:1; }
+
+  footer.note{ color:var(--muted); font-size:11.5px; text-align:center; padding-top:6px; }
+</style>
+</head>
+<body>
+
+<!-- ---------- pantalla de acceso ---------- -->
+<div class="auth-screen" id="authScreen">
+  <div class="auth-wrap">
+    <div class="auth-brand">
+      <div class="mark" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="4" y="2" width="16" height="20" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M12 7v6M9 10h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </div>
+      <h1>Mercado MTG</h1>
+    </div>
+    <div class="card">
+      <div class="auth-tabs">
+        <button type="button" class="btn active" id="tabLoginBtn">Iniciar sesión</button>
+        <button type="button" class="btn" id="tabRegisterBtn">Crear cuenta</button>
+      </div>
+
+      <form id="loginForm" style="margin-top:16px; display:flex; flex-direction:column; gap:12px;">
+        <div class="field"><label for="loginNick">Nick</label><input id="loginNick" type="text" required autocomplete="username"></div>
+        <div class="field"><label for="loginPass">Contraseña</label><input id="loginPass" type="password" required autocomplete="current-password"></div>
+        <button type="submit" class="btn primary block" id="loginBtn">Entrar</button>
+        <div class="form-msg" id="loginMsg" aria-live="polite"></div>
+      </form>
+
+      <form id="registerForm" hidden style="margin-top:16px; display:flex; flex-direction:column; gap:12px;">
+        <div class="field"><label for="regNick">Nick</label><input id="regNick" type="text" required placeholder="3-24 caracteres" autocomplete="username"></div>
+        <div class="field"><label for="regPass">Contraseña</label><input id="regPass" type="password" required autocomplete="new-password"></div>
+        <div class="field"><label for="regUrb">Urbanización <span style="font-weight:400">(opcional, para el chat de tu zona)</span></label><input id="regUrb" type="text" placeholder="Ej. Las Orquídeas"></div>
+        <div class="field"><label for="regDist">Distrito <span style="font-weight:400">(opcional)</span></label><input id="regDist" type="text" placeholder="Ej. La Molina"></div>
+        <button type="submit" class="btn primary block" id="registerBtn">Crear cuenta y entrar</button>
+        <div class="form-msg" id="registerMsg" aria-live="polite"></div>
+      </form>
+    </div>
+    <p class="auth-note">Necesitas una cuenta para publicar, comprar y usar el chat de tu zona. Tu urbanización y distrito nunca se muestran a otros — solo te agrupan en el chat correspondiente.</p>
+  </div>
+</div>
+
+<!-- ---------- app ---------- -->
+<div class="app-shell" id="appShell" hidden>
+  <nav class="sidenav">
+    <div class="brand">
+      <div class="mark" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="4" y="2" width="16" height="20" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M12 7v6M9 10h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </div>
+      <h1>Mercado MTG</h1>
+    </div>
+    <button type="button" class="nav-btn active" data-tab="venta">Venta</button>
+    <button type="button" class="nav-btn" data-tab="compra">Compra</button>
+    <button type="button" class="nav-btn" data-tab="social">Social</button>
+    <div class="user-box">
+      <span class="who" id="whoNick"></span>
+      <button type="button" class="btn small" id="logoutBtn">Cerrar sesión</button>
+    </div>
+  </nav>
+
+  <div class="main-col">
+    <!-- ===== VENTA ===== -->
+    <section id="tabVenta">
+      <section class="card">
+        <h2>Buscar carta</h2>
+        <span class="hint">Escribe el nombre en inglés (Scryfall). Elige la carta, luego la <strong>edición exacta</strong> (cada arte/expansión tiene su propio precio) y marca <strong>Foil</strong> si corresponde.</span>
+        <div class="search-row">
+          <div class="field">
+            <label for="cardSearch">Nombre de la carta</label>
+            <input id="cardSearch" type="text" placeholder="Ej. Lightning Bolt" autocomplete="off">
+            <div id="suggestBox" class="suggest" hidden role="listbox"></div>
+          </div>
+        </div>
+        <div class="form-msg" id="searchMsg" aria-live="polite"></div>
+
+        <div class="preview" id="preview" hidden>
+          <img id="previewImg" alt="">
+          <div class="info">
+            <h3 id="previewName"></h3>
+            <div class="set" id="previewSet"></div>
+            <div class="edicion-row">
+              <div class="field">
+                <label for="edicionSelect">Edición (arte / expansión)</label>
+                <select id="edicionSelect"></select>
+              </div>
+              <label class="foil-toggle" id="foilToggle"><input type="checkbox" id="foilCheck"> Foil</label>
+            </div>
+            <div class="ref-price">
+              <div>Precio de referencia (Scryfall x <span id="previewMult"></span>)</div>
+              <div class="big" id="previewPrice"></div>
+              <div class="sub" id="previewSub"></div>
+            </div>
+          </div>
+        </div>
+
+        <form id="publishForm" class="publish-form" hidden>
+          <div class="field">
+            <label for="condicion">Condición</label>
+            <select id="condicion" required>
+              <option value="" disabled selected>Selecciona…</option>
+              <option value="NM">NM - Near Mint</option>
+              <option value="LP">LP - Lightly Played</option>
+              <option value="MP">MP - Moderately Played</option>
+              <option value="HP">HP - Heavily Played</option>
+              <option value="DMG">DMG - Damaged</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="precioPen">Tu precio (S/)</label>
+            <input id="precioPen" type="text" inputmode="decimal" placeholder="0.00" required>
+          </div>
+          <div class="field">
+            <label for="whatsapp">Tu WhatsApp (con código de país)</label>
+            <input id="whatsapp" type="tel" placeholder="51999999999" required>
+          </div>
+          <div class="field" style="grid-column:1/-1">
+            <button type="submit" class="btn primary" id="publishBtn" style="align-self:flex-start">Publicar en venta</button>
+            <span class="form-msg" id="publishMsg" aria-live="polite"></span>
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Importar desde Moxfield</h2>
+        <span class="hint">¿Ya tienes tus cartas cargadas en Moxfield? Entra a tu colección o mazo → busca la opción <strong>Export</strong> (Exportar) → copia el texto o el CSV que te da → pégalo aquí abajo. Detectamos automáticamente si marcaste Foil en el CSV. La edición exacta que use Scryfall para el precio es aproximada (la más reciente disponible) — si te importa el arte/expansión precisa de una carta cara, mejor búscala individual arriba.</span>
+        <div class="field">
+          <label for="moxfieldInput">Texto o CSV exportado de Moxfield</label>
+          <textarea id="moxfieldInput" class="moxfield-input" placeholder="Ej.&#10;4 Lightning Bolt&#10;1 Sol Ring&#10;2 Island&#10;&#10;…o pega directamente el CSV de tu colección."></textarea>
+        </div>
+        <div class="import-actions">
+          <button type="button" class="btn primary" id="moxfieldBtn">Procesar lista</button>
+          <span class="form-msg" id="moxfieldMsg" aria-live="polite"></span>
+        </div>
+        <div id="moxfieldSummary" class="import-summary" hidden></div>
+        <div id="notFoundBox" class="not-found-box" hidden></div>
+
+        <div id="reviewSection" hidden>
+          <div class="row-table" id="reviewTable"></div>
+          <div class="publish-form" style="grid-template-columns:1fr 1fr;">
+            <div class="field">
+              <label for="moxWhatsapp">Tu WhatsApp para todas estas publicaciones (con código de país)</label>
+              <input id="moxWhatsapp" type="tel" placeholder="51999999999">
+            </div>
+            <div class="field" style="justify-content:flex-end;">
+              <div style="display:flex; gap:10px;">
+                <button type="button" class="btn" id="moxCancelBtn">Cancelar</button>
+                <button type="button" class="btn primary" id="moxPublishBtn">Publicar todas</button>
+              </div>
+            </div>
+          </div>
+          <div class="form-msg" id="moxPublishMsg" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Mis publicaciones<span class="hint" id="myListingsHint">Tus cartas en venta. Cambia el precio cuando quieras.</span></h2>
+        <div class="row-table" id="myListingsTable"></div>
+      </section>
+    </section>
+
+    <!-- ===== COMPRA ===== -->
+    <section id="tabCompra" hidden>
+      <section class="card">
+        <h2>Cartas en venta</h2>
+        <span class="hint">Publicadas por otros jugadores. Contáctalos directo por WhatsApp para coordinar. Las que ya son tuyas aparecen en gris.</span>
+        <div class="listings-toolbar">
+          <div class="field">
+            <label for="listingSearch">Buscar en las publicaciones</label>
+            <input id="listingSearch" type="search" placeholder="Buscar por nombre de carta…">
+          </div>
+          <button type="button" class="btn" id="refreshBtn">Actualizar</button>
+        </div>
+        <div class="grid" id="listingsGrid"></div>
+      </section>
+    </section>
+
+    <!-- ===== SOCIAL ===== -->
+    <section id="tabSocial" hidden>
+      <section class="card" id="locationCard">
+        <h2>Tu zona</h2>
+        <span class="hint">Regístrala para entrar al chat de jugadores de tu urbanización y distrito.</span>
+        <div class="location-form">
+          <div class="field"><label for="socUrb">Urbanización</label><input id="socUrb" type="text" placeholder="Ej. Las Orquídeas"></div>
+          <div class="field"><label for="socDist">Distrito</label><input id="socDist" type="text" placeholder="Ej. La Molina"></div>
+          <button type="button" class="btn primary" id="socSaveBtn">Guardar</button>
+        </div>
+        <div class="form-msg" id="socMsg" aria-live="polite"></div>
+      </section>
+
+      <section class="card" id="chatCard" hidden>
+        <h2>Chat de tu zona</h2>
+        <div class="group-info" id="groupInfo"></div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-input-row">
+          <input id="chatInput" type="text" placeholder="Escribe un mensaje…" maxlength="500">
+          <button type="button" class="btn primary" id="chatSendBtn">Enviar</button>
+        </div>
+        <div class="form-msg" id="chatMsg" aria-live="polite"></div>
+      </section>
+    </section>
+
+    <footer class="note">Los precios de referencia usan datos de mercado de Scryfall; el precio final lo define cada vendedor. Ningún pago se procesa en esta página — coordina y paga directamente con el otro jugador.</footer>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var TOKEN_KEY = "mtg_token";
+  var currentUser = null; // { nick, urbanizacion, distrito, grupoKey }
+  var listings = [];
+  var chatPoll = null;
+
+  var els = {};
+  [
+    "authScreen","tabLoginBtn","tabRegisterBtn","loginForm","registerForm",
+    "loginNick","loginPass","loginBtn","loginMsg",
+    "regNick","regPass","regUrb","regDist","registerBtn","registerMsg",
+    "appShell","whoNick","logoutBtn",
+    "tabVenta","tabCompra","tabSocial",
+    "cardSearch","suggestBox","searchMsg","preview","previewImg","previewName","previewSet",
+    "edicionSelect","foilToggle","foilCheck",
+    "previewMult","previewPrice","previewSub","publishForm","condicion","precioPen","whatsapp",
+    "publishBtn","publishMsg",
+    "moxfieldInput","moxfieldBtn","moxfieldMsg","moxfieldSummary","notFoundBox","reviewSection",
+    "reviewTable","moxWhatsapp","moxCancelBtn","moxPublishBtn","moxPublishMsg",
+    "myListingsHint","myListingsTable",
+    "listingSearch","refreshBtn","listingsGrid",
+    "locationCard","socUrb","socDist","socSaveBtn","socMsg",
+    "chatCard","groupInfo","chatMessages","chatInput","chatSendBtn","chatMsg",
+    "toast"
+  ].forEach(function(id){ els[id] = document.getElementById(id); });
+
+  function notify(msg){
+    els.toast.textContent = msg;
+    els.toast.classList.add("show");
+    clearTimeout(notify._t);
+    notify._t = setTimeout(function(){ els.toast.classList.remove("show"); }, 3200);
+  }
+  function fmtPen(n){ return "S/ " + Number(n).toLocaleString("es-PE", { minimumFractionDigits:2, maximumFractionDigits:2 }); }
+  function fmtUsd(n){ return "US$ " + Number(n).toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 }); }
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+  function saveToken(t){ try { localStorage.setItem(TOKEN_KEY, t); } catch(e){} }
+  function loadToken(){ try { return localStorage.getItem(TOKEN_KEY) || ""; } catch(e){ return ""; } }
+  function clearToken(){ try { localStorage.removeItem(TOKEN_KEY); } catch(e){} }
+
+  // ================= AUTH =================
+  els.tabLoginBtn.addEventListener("click", function(){
+    els.tabLoginBtn.classList.add("active"); els.tabRegisterBtn.classList.remove("active");
+    els.loginForm.hidden = false; els.registerForm.hidden = true;
+  });
+  els.tabRegisterBtn.addEventListener("click", function(){
+    els.tabRegisterBtn.classList.add("active"); els.tabLoginBtn.classList.remove("active");
+    els.registerForm.hidden = false; els.loginForm.hidden = true;
+  });
+
+  els.loginForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    els.loginMsg.textContent = "";
+    els.loginBtn.disabled = true;
+    google.script.run.withSuccessHandler(function(res){
+      els.loginBtn.disabled = false;
+      onAuthSuccess(res);
+    }).withFailureHandler(function(err){
+      els.loginBtn.disabled = false;
+      els.loginMsg.textContent = err && err.message ? err.message : "No se pudo iniciar sesión.";
+    }).iniciarSesion(els.loginNick.value, els.loginPass.value);
+  });
+
+  els.registerForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    els.registerMsg.textContent = "";
+    els.registerBtn.disabled = true;
+    google.script.run.withSuccessHandler(function(res){
+      els.registerBtn.disabled = false;
+      onAuthSuccess(res);
+    }).withFailureHandler(function(err){
+      els.registerBtn.disabled = false;
+      els.registerMsg.textContent = err && err.message ? err.message : "No se pudo crear la cuenta.";
+    }).registrarUsuario(els.regNick.value, els.regPass.value, els.regUrb.value, els.regDist.value);
+  });
+
+  function onAuthSuccess(res){
+    currentUser = res;
+    saveToken(res.token);
+    els.whoNick.textContent = res.nick;
+    els.authScreen.hidden = true;
+    els.appShell.hidden = false;
+    initAppData();
+  }
+
+  els.logoutBtn.addEventListener("click", function(){
+    var token = loadToken();
+    google.script.run.cerrarSesion(token);
+    clearToken();
+    currentUser = null;
+    if (chatPoll) clearInterval(chatPoll);
+    location.reload();
+  });
+
+  // ================= TABS =================
+  document.querySelectorAll(".nav-btn[data-tab]").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      document.querySelectorAll(".nav-btn[data-tab]").forEach(function(b){ b.classList.remove("active"); });
+      btn.classList.add("active");
+      ["Venta","Compra","Social"].forEach(function(name){
+        els["tab" + name].hidden = (name.toLowerCase() !== btn.dataset.tab);
+      });
+      if (btn.dataset.tab === "social") refreshSocial();
+      if (btn.dataset.tab === "compra") refresh(false);
+      if (btn.dataset.tab === "venta") refreshMyListings();
+    });
+  });
+
+  // ================= búsqueda / sugerencias =================
+  var searchDebounce = null;
+  var activeIndex = -1;
+  function suggestButtons(){ return Array.prototype.slice.call(els.suggestBox.querySelectorAll("button")); }
+  function renderSuggestions(names){
+    els.suggestBox.innerHTML = "";
+    activeIndex = -1;
+    if (!names || !names.length){ els.suggestBox.hidden = true; return; }
+    names.forEach(function(name){
+      var b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("role","option");
+      b.textContent = name;
+      b.addEventListener("click", function(){
+        els.cardSearch.value = name;
+        els.suggestBox.hidden = true;
+        seleccionarCarta(name);
+      });
+      els.suggestBox.appendChild(b);
+    });
+    els.suggestBox.hidden = false;
+  }
+  els.cardSearch.addEventListener("input", function(){
+    var q = els.cardSearch.value.trim();
+    clearTimeout(searchDebounce);
+    if (q.length < 2){ els.suggestBox.hidden = true; return; }
+    searchDebounce = setTimeout(function(){
+      google.script.run.withSuccessHandler(renderSuggestions).withFailureHandler(function(){
+        els.suggestBox.hidden = true;
+      }).buscarSugerencias(q);
+    }, 250);
+  });
+  els.cardSearch.addEventListener("keydown", function(e){
+    if (els.suggestBox.hidden) return;
+    var btns = suggestButtons();
+    if (!btns.length) return;
+    if (e.key === "ArrowDown"){ e.preventDefault(); activeIndex = Math.min(activeIndex + 1, btns.length - 1); }
+    else if (e.key === "ArrowUp"){ e.preventDefault(); activeIndex = Math.max(activeIndex - 1, 0); }
+    else if (e.key === "Enter" && activeIndex >= 0){ e.preventDefault(); btns[activeIndex].click(); return; }
+    else if (e.key === "Escape"){ els.suggestBox.hidden = true; return; }
+    else return;
+    btns.forEach(function(b,i){ b.classList.toggle("active", i === activeIndex); });
+  });
+  document.addEventListener("click", function(e){
+    if (!els.suggestBox.contains(e.target) && e.target !== els.cardSearch) els.suggestBox.hidden = true;
+  });
+
+  var impresionesActuales = []; // todas las ediciones/artes de la carta buscada
+  var impresionSeleccionada = null;
+  var multiplicadorActual = 1;
+  var tipoCambioActual = 1;
+
+  function fmtFecha(iso){
+    if (!iso) return "";
+    var d = new Date(iso);
+    return isNaN(d.getTime()) ? "" : d.toLocaleDateString("es-PE", { year:"numeric", month:"short" });
+  }
+
+  function seleccionarCarta(nombre){
+    els.searchMsg.textContent = "Buscando ediciones…";
+    els.preview.hidden = true;
+    els.publishForm.hidden = true;
+    google.script.run.withSuccessHandler(function(res){
+      els.searchMsg.textContent = "";
+      impresionesActuales = res.impresiones || [];
+      multiplicadorActual = res.multiplicador;
+      tipoCambioActual = res.tipoCambio;
+      els.previewMult.textContent = multiplicadorActual;
+
+      els.edicionSelect.innerHTML = impresionesActuales.map(function(imp, i){
+        var etiqueta = imp.setNombre + " (" + imp.setCode + ") #" + imp.coleccionista + (imp.lanzamiento ? " · " + fmtFecha(imp.lanzamiento) : "");
+        return '<option value="' + i + '">' + esc(etiqueta) + '</option>';
+      }).join("");
+      els.edicionSelect.selectedIndex = 0;
+      els.foilCheck.checked = false;
+
+      els.preview.hidden = false;
+      els.publishForm.hidden = false;
+      actualizarPreviewImpresion();
+    }).withFailureHandler(function(err){
+      els.searchMsg.textContent = err && err.message ? err.message : "No se pudo buscar la carta.";
+    }).obtenerImpresiones(nombre);
+  }
+
+  function precioActual(){
+    if (!impresionSeleccionada) return { usd: null, pen: null };
+    var usd = els.foilCheck.checked && impresionSeleccionada.usdFoil != null ? impresionSeleccionada.usdFoil : impresionSeleccionada.usd;
+    if (usd == null) return { usd: null, pen: null };
+    var sugeridoUsd = Math.round(usd * multiplicadorActual * 100) / 100;
+    var sugeridoPen = Math.round(sugeridoUsd * tipoCambioActual * 100) / 100;
+    return { usd: usd, sugeridoUsd: sugeridoUsd, sugeridoPen: sugeridoPen };
+  }
+
+  function actualizarPreviewImpresion(){
+    var i = Number(els.edicionSelect.value);
+    impresionSeleccionada = impresionesActuales[i];
+    if (!impresionSeleccionada) return;
+
+    els.previewImg.src = impresionSeleccionada.imagenUrl || "";
+    els.previewImg.alt = impresionSeleccionada.nombre;
+    els.previewName.textContent = impresionSeleccionada.nombre;
+    els.previewSet.textContent = impresionSeleccionada.setNombre + " (" + impresionSeleccionada.setCode + ") #" + impresionSeleccionada.coleccionista;
+
+    var puedeFoil = impresionSeleccionada.tieneFoil;
+    els.foilCheck.disabled = !puedeFoil;
+    els.foilToggle.classList.toggle("disabled", !puedeFoil);
+    if (!puedeFoil) els.foilCheck.checked = false;
+    if (!impresionSeleccionada.tieneNoFoil && puedeFoil) els.foilCheck.checked = true;
+
+    var p = precioActual();
+    if (p.usd != null){
+      els.previewPrice.textContent = fmtPen(p.sugeridoPen);
+      els.previewSub.textContent = "≈ " + fmtUsd(p.sugeridoUsd) + "  ·  Scryfall: " + fmtUsd(p.usd) + (els.foilCheck.checked ? " (foil)" : "") + "  ·  TC: " + tipoCambioActual.toFixed(3);
+      els.precioPen.value = p.sugeridoPen.toFixed(2);
+    } else {
+      els.previewPrice.textContent = "Sin precio de mercado";
+      els.previewSub.textContent = "Esta edición no tiene precio de referencia en USD.";
+      els.precioPen.value = "";
+    }
+  }
+  els.edicionSelect.addEventListener("change", actualizarPreviewImpresion);
+  els.foilCheck.addEventListener("change", actualizarPreviewImpresion);
+
+  els.publishForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    if (!impresionSeleccionada){ els.publishMsg.textContent = "Primero busca una carta."; return; }
+    var precio = parseFloat(String(els.precioPen.value).replace(",", "."));
+    if (!precio || precio <= 0){ els.publishMsg.textContent = "Ingresa un precio válido."; return; }
+    els.publishMsg.textContent = "";
+    els.publishBtn.disabled = true;
+    var p = precioActual();
+    var payload = {
+      cartaNombre: impresionSeleccionada.nombre, setNombre: impresionSeleccionada.setNombre,
+      setCode: impresionSeleccionada.setCode, coleccionista: impresionSeleccionada.coleccionista,
+      imagenUrl: impresionSeleccionada.imagenUrl,
+      precioUsdRef: p.usd, precioSugeridoUsd: p.sugeridoUsd, precioSugeridoPen: p.sugeridoPen,
+      condicion: els.condicion.value, precioVendedorPen: precio, whatsapp: els.whatsapp.value,
+      esFoil: els.foilCheck.checked
+    };
+    google.script.run.withSuccessHandler(function(data){
+      listings = data || [];
+      renderListings();
+      els.publishBtn.disabled = false;
+      els.publishForm.reset();
+      els.preview.hidden = true;
+      els.publishForm.hidden = true;
+      els.cardSearch.value = "";
+      impresionesActuales = [];
+      impresionSeleccionada = null;
+      notify("¡Publicado! Ya aparece en tus publicaciones.");
+      refreshMyListings();
+    }).withFailureHandler(function(err){
+      els.publishBtn.disabled = false;
+      els.publishMsg.textContent = err && err.message ? err.message : "No se pudo publicar.";
+    }).publicarListado(loadToken(), payload);
+  });
+
+  // ================= importar Moxfield =================
+  var reviewItems = [];
+
+  els.moxfieldBtn.addEventListener("click", function(){
+    var texto = els.moxfieldInput.value;
+    if (!texto || !texto.trim()){ els.moxfieldMsg.textContent = "Pega primero el texto o CSV exportado de Moxfield."; return; }
+    els.moxfieldMsg.textContent = "Buscando precios… esto puede tardar unos segundos si son muchas cartas.";
+    els.moxfieldBtn.disabled = true;
+    els.moxfieldSummary.hidden = true;
+    els.notFoundBox.hidden = true;
+    google.script.run.withSuccessHandler(function(res){
+      els.moxfieldBtn.disabled = false;
+      els.moxfieldMsg.textContent = "";
+      var encontradas = res.encontradas || [];
+      var noEncontradas = res.noEncontradas || [];
+      reviewItems = encontradas.map(function(c){
+        return {
+          cartaNombre: c.cartaNombre, setNombre: c.setNombre, setCode: c.setCode, coleccionista: c.coleccionista,
+          imagenUrl: c.imagenUrl, esFoil: !!c.esFoil, edicionTexto: c.edicionTexto || "",
+          usd: c.usd, precioSugeridoUsd: c.precioSugeridoUsd, precioSugeridoPen: c.precioSugeridoPen,
+          precioVendedorPen: c.precioSugeridoPen != null ? Number(c.precioSugeridoPen.toFixed(2)) : 0,
+          condicion: "NM", cantidad: c.cantidad || 1
+        };
+      });
+      els.moxfieldSummary.hidden = false;
+      els.moxfieldSummary.innerHTML = "Se encontraron <strong>" + encontradas.length + "</strong> carta(s)." +
+        (noEncontradas.length ? ' <span class="warn">' + noEncontradas.length + " no se pudieron identificar (revísalas abajo).</span>" : "");
+      if (noEncontradas.length){
+        els.notFoundBox.hidden = false;
+        els.notFoundBox.textContent = "No encontradas: " + noEncontradas.join(", ");
+      }
+      renderReviewTable();
+    }).withFailureHandler(function(err){
+      els.moxfieldBtn.disabled = false;
+      els.moxfieldMsg.textContent = err && err.message ? err.message : "No se pudo procesar la lista.";
+    }).importarDesdeMoxfield(texto);
+  });
+
+  function renderReviewTable(){
+    if (!reviewItems.length){ els.reviewSection.hidden = true; return; }
+    els.reviewSection.hidden = false;
+    var condOptions = ["NM","LP","MP","HP","DMG"];
+    var rows = '<div class="r head"><span></span><span>Carta</span><span>Cant.</span><span>Precio (S/) y condición</span><span></span></div>';
+    reviewItems.forEach(function(it, i){
+      var opts = condOptions.map(function(c){ return '<option value="' + c + '"' + (c === it.condicion ? " selected" : "") + '>' + c + '</option>'; }).join("");
+      var setLabel = (it.setNombre || "") + (it.setCode ? " (" + it.setCode + ")" : "") + (it.edicionTexto ? " · Moxfield: " + it.edicionTexto : "");
+      rows += '<div class="r" data-i="' + i + '">' +
+        (it.imagenUrl ? '<img src="' + esc(it.imagenUrl) + '" alt="">' : '<span></span>') +
+        '<div><div class="rname">' + esc(it.cartaNombre) + (it.esFoil ? '<span class="foil-tag">Foil</span>' : '') + '</div><div class="rset">' + esc(setLabel) + '</div></div>' +
+        '<div class="rqty">×' + it.cantidad + '</div>' +
+        '<div class="rprice-wrap"><input type="text" inputmode="decimal" class="r-price" value="' + (it.precioVendedorPen || "") + '"><select class="r-cond">' + opts + '</select></div>' +
+        '<div class="ractions"><button type="button" class="btn small rremove">Quitar</button></div>' +
+      '</div>';
+    });
+    els.reviewTable.innerHTML = rows;
+    els.reviewTable.querySelectorAll(".r[data-i]").forEach(function(row){
+      var i = Number(row.dataset.i);
+      row.querySelector(".r-price").addEventListener("input", function(e){
+        reviewItems[i].precioVendedorPen = parseFloat(String(e.target.value).replace(",", ".")) || 0;
+      });
+      row.querySelector(".r-cond").addEventListener("change", function(e){
+        reviewItems[i].condicion = e.target.value;
+      });
+      row.querySelector(".rremove").addEventListener("click", function(){
+        reviewItems.splice(i, 1);
+        renderReviewTable();
+      });
+    });
+  }
+
+  els.moxCancelBtn.addEventListener("click", function(){
+    reviewItems = [];
+    els.reviewSection.hidden = true;
+    els.moxfieldSummary.hidden = true;
+    els.notFoundBox.hidden = true;
+    els.moxfieldInput.value = "";
+  });
+
+  els.moxPublishBtn.addEventListener("click", function(){
+    if (!reviewItems.length){ els.moxPublishMsg.textContent = "No hay cartas para publicar."; return; }
+    var invalid = reviewItems.some(function(it){ return !it.precioVendedorPen || it.precioVendedorPen <= 0; });
+    if (invalid){ els.moxPublishMsg.textContent = "Hay cartas sin precio válido — corrígelas o quítalas."; return; }
+    if (!els.moxWhatsapp.value.trim()){ els.moxPublishMsg.textContent = "Ingresa tu WhatsApp."; return; }
+    els.moxPublishMsg.textContent = "";
+    els.moxPublishBtn.disabled = true;
+    google.script.run.withSuccessHandler(function(data){
+      listings = data || [];
+      renderListings();
+      els.moxPublishBtn.disabled = false;
+      reviewItems = [];
+      els.reviewSection.hidden = true;
+      els.moxfieldSummary.hidden = true;
+      els.notFoundBox.hidden = true;
+      els.moxfieldInput.value = "";
+      els.moxWhatsapp.value = "";
+      notify("¡Publicadas! Revisa la sección Mis publicaciones.");
+      refreshMyListings();
+    }).withFailureHandler(function(err){
+      els.moxPublishBtn.disabled = false;
+      els.moxPublishMsg.textContent = err && err.message ? err.message : "No se pudo publicar el lote.";
+    }).publicarListadoMasivo(loadToken(), reviewItems, els.moxWhatsapp.value);
+  });
+
+  // ================= mis publicaciones =================
+  var myListings = [];
+  var pendingMyDelete = null;
+
+  function refreshMyListings(){
+    google.script.run.withSuccessHandler(function(data){
+      myListings = data || [];
+      renderMyListings();
+    }).withFailureHandler(function(){}).listarMisListados(loadToken());
+  }
+
+  function renderMyListings(){
+    els.myListingsHint.textContent = myListings.length
+      ? myListings.length + " publicación(es) activa(s)."
+      : "Tus cartas en venta. Cambia el precio cuando quieras.";
+    if (!myListings.length){
+      els.myListingsTable.innerHTML = '<div class="empty-state">Todavía no tienes cartas publicadas.</div>';
+      return;
+    }
+    var rows = '<div class="r head"><span></span><span>Carta</span><span>Cant.</span><span>Precio (S/)</span><span></span></div>';
+    myListings.forEach(function(l){
+      var setLabel = (l.setNombre || "") + (l.setCode ? " (" + l.setCode + ")" : "") + " · " + l.condicion;
+      rows += '<div class="r" data-id="' + esc(l.id) + '">' +
+        (l.imagenUrl ? '<img src="' + esc(l.imagenUrl) + '" alt="">' : '<span></span>') +
+        '<div><div class="rname">' + esc(l.cartaNombre) + (l.esFoil ? '<span class="foil-tag">Foil</span>' : '') + '</div><div class="rset">' + esc(setLabel) + '</div></div>' +
+        '<div class="rqty">×' + l.cantidad + '</div>' +
+        '<div class="rprice-wrap"><input type="text" inputmode="decimal" class="my-price" value="' + l.precioVendedorPen + '"><button type="button" class="btn small my-save">Guardar</button></div>' +
+        '<div class="ractions"><button type="button" class="btn small my-remove">Quitar</button></div>' +
+      '</div>';
+    });
+    els.myListingsTable.innerHTML = rows;
+    els.myListingsTable.querySelectorAll(".r[data-id]").forEach(function(row){
+      var id = row.dataset.id;
+      row.querySelector(".my-save").addEventListener("click", function(){
+        var val = parseFloat(String(row.querySelector(".my-price").value).replace(",", "."));
+        if (!val || val <= 0){ notify("Precio inválido."); return; }
+        google.script.run.withSuccessHandler(function(data){
+          myListings = data || [];
+          renderMyListings();
+          notify("Precio actualizado.");
+          refresh(false);
+        }).withFailureHandler(function(err){
+          notify(err && err.message ? err.message : "No se pudo actualizar.");
+        }).actualizarPrecioListado(loadToken(), id, val);
+      });
+      var removeBtn = row.querySelector(".my-remove");
+      removeBtn.addEventListener("click", function(){
+        if (pendingMyDelete === id){
+          pendingMyDelete = null;
+          google.script.run.withSuccessHandler(function(data){
+            myListings = data || [];
+            renderMyListings();
+            notify("Publicación retirada.");
+            refresh(false);
+          }).withFailureHandler(function(err){
+            notify(err && err.message ? err.message : "No se pudo quitar.");
+          }).eliminarListado(loadToken(), id);
+          return;
+        }
+        pendingMyDelete = id;
+        removeBtn.textContent = "¿Confirmar?";
+        removeBtn.classList.add("primary");
+        setTimeout(function(){
+          if (pendingMyDelete === id){ pendingMyDelete = null; removeBtn.textContent = "Quitar"; removeBtn.classList.remove("primary"); }
+        }, 3500);
+      });
+    });
+  }
+
+  // ================= compra / listado general =================
+  function renderListings(){
+    var q = els.listingSearch.value.trim().toLowerCase();
+    var list = q ? listings.filter(function(l){ return l.cartaNombre.toLowerCase().indexOf(q) !== -1; }) : listings;
+    if (!list.length){
+      els.listingsGrid.innerHTML = '<div class="empty-state">' +
+        (listings.length ? "No hay coincidencias." : "Todavía no hay cartas publicadas. ¡Sé el primero!") +
+        '</div>';
+      return;
+    }
+    els.listingsGrid.innerHTML = list.map(function(l){
+      var esMia = currentUser && l.vendedor === currentUser.nick;
+      var wa = "https://wa.me/" + l.whatsapp + "?text=" + encodeURIComponent("Hola! Vi tu publicación de " + l.cartaNombre + " en Mercado MTG, ¿sigue disponible?");
+      var setLabel = l.setNombre + (l.setCode ? " (" + l.setCode + ")" : "");
+      return '<div class="listing' + (esMia ? ' own' : '') + '">' +
+        (esMia ? '<span class="own-tag">Tuya</span>' : (l.cantidad > 1 ? '<span class="qty">×' + l.cantidad + '</span>' : '')) +
+        (l.imagenUrl ? '<img src="' + esc(l.imagenUrl) + '" alt="' + esc(l.cartaNombre) + '" loading="lazy">' : '') +
+        '<div class="body">' +
+          '<div class="name">' + esc(l.cartaNombre) + (l.esFoil ? '<span class="foil-tag">Foil</span>' : '') + '</div>' +
+          '<div class="set">' + esc(setLabel) + '</div>' +
+          '<span class="cond">' + esc(l.condicion) + '</span>' +
+          '<div class="price">' + fmtPen(l.precioVendedorPen) + '</div>' +
+          '<div class="spacer"></div>' +
+          (esMia
+            ? '<button type="button" class="btn small" disabled>Es tu publicación</button>'
+            : '<a class="btn whatsapp small" href="' + wa + '" target="_blank" rel="noopener">Contactar por WhatsApp</a>') +
+        '</div>' +
+      '</div>';
+    }).join("");
+  }
+  els.listingSearch.addEventListener("input", renderListings);
+  els.refreshBtn.addEventListener("click", function(){ refresh(true); });
+
+  function refresh(showToast){
+    google.script.run.withSuccessHandler(function(data){
+      listings = data || [];
+      renderListings();
+      if (showToast) notify("Actualizado.");
+    }).withFailureHandler(function(){}).listarListados("");
+  }
+
+  // ================= social =================
+  els.socSaveBtn.addEventListener("click", function(){
+    els.socMsg.textContent = "";
+    els.socSaveBtn.disabled = true;
+    google.script.run.withSuccessHandler(function(res){
+      els.socSaveBtn.disabled = false;
+      currentUser.urbanizacion = res.urbanizacion;
+      currentUser.distrito = res.distrito;
+      currentUser.grupoKey = res.grupoKey;
+      notify("Zona guardada.");
+      refreshSocial();
+    }).withFailureHandler(function(err){
+      els.socSaveBtn.disabled = false;
+      els.socMsg.textContent = err && err.message ? err.message : "No se pudo guardar.";
+    }).actualizarUbicacion(loadToken(), els.socUrb.value, els.socDist.value);
+  });
+
+  function refreshSocial(){
+    google.script.run.withSuccessHandler(function(info){
+      if (!info.tieneGrupo){
+        els.locationCard.hidden = false;
+        els.chatCard.hidden = true;
+        if (chatPoll){ clearInterval(chatPoll); chatPoll = null; }
+        return;
+      }
+      els.locationCard.hidden = true;
+      els.chatCard.hidden = false;
+      els.groupInfo.innerHTML = "Chat de <strong>" + esc(info.urbanizacion) + ", " + esc(info.distrito) + "</strong> · " +
+        info.miembros + (info.miembros === 1 ? " persona registrada en tu zona." : " personas registradas en tu zona.");
+      loadChat();
+      if (chatPoll) clearInterval(chatPoll);
+      chatPoll = setInterval(loadChat, 8000);
+    }).withFailureHandler(function(){}).obtenerGrupoInfo(loadToken());
+  }
+
+  function loadChat(){
+    google.script.run.withSuccessHandler(renderChat).withFailureHandler(function(){}).listarMensajes(loadToken());
+  }
+  function renderChat(msgs){
+    var atBottom = els.chatMessages.scrollTop + els.chatMessages.clientHeight >= els.chatMessages.scrollHeight - 30;
+    els.chatMessages.innerHTML = (msgs || []).map(function(m){
+      var mine = currentUser && m.nick === currentUser.nick;
+      var t = new Date(m.ts).toLocaleTimeString("es-PE", { hour:"2-digit", minute:"2-digit" });
+      return '<div class="chat-msg' + (mine ? ' me' : '') + '"><span class="nick">' + esc(m.nick) + '</span>' + esc(m.texto) + '<span class="time">' + t + '</span></div>';
+    }).join("") || '<div class="empty-state">Todavía no hay mensajes. ¡Saluda a tu zona!</div>';
+    if (atBottom) els.chatMessages.scrollTop = els.chatMessages.scrollHeight;
+  }
+  function sendChat(){
+    var texto = els.chatInput.value.trim();
+    if (!texto) return;
+    els.chatMsg.textContent = "";
+    els.chatSendBtn.disabled = true;
+    google.script.run.withSuccessHandler(function(msgs){
+      els.chatSendBtn.disabled = false;
+      els.chatInput.value = "";
+      renderChat(msgs);
+      els.chatMessages.scrollTop = els.chatMessages.scrollHeight;
+    }).withFailureHandler(function(err){
+      els.chatSendBtn.disabled = false;
+      els.chatMsg.textContent = err && err.message ? err.message : "No se pudo enviar.";
+    }).enviarMensaje(loadToken(), texto);
+  }
+  els.chatSendBtn.addEventListener("click", sendChat);
+  els.chatInput.addEventListener("keydown", function(e){ if (e.key === "Enter") sendChat(); });
+
+  // ================= arranque =================
+  function initAppData(){
+    els.socUrb.value = currentUser.urbanizacion || "";
+    els.socDist.value = currentUser.distrito || "";
+    renderListings();
+    refresh(false);
+    refreshMyListings();
+    setInterval(function(){ if (document.visibilityState === "visible") refresh(false); }, 25000);
+  }
+
+  (function boot(){
+    var token = loadToken();
+    if (!token){ return; }
+    google.script.run.withSuccessHandler(function(res){
+      onAuthSuccess(res);
+    }).withFailureHandler(function(){
+      clearToken();
+    }).validarSesion(token);
+  })();
+})();
+</script>
+</body>
+</html>
