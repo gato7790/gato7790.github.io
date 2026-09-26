@@ -1080,7 +1080,7 @@
   if (!screenEl || !canvas || !canvas.getContext) return;
   var ctx = canvas.getContext("2d");
   var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var W = 0, H = 0, S = 1, t = 0, last = 0, flash = 0, shield = 0;
+  var W = 0, H = 0, S = 1, t = 0, last = 0, flash = 0, shield = 0, krenkoSwing = 0;
   var stars = [], thopters = [], goblins = [], necrons = [], sparks = [], bolts = [], beams = [], shots = [], warps = [];
   var next = { thopter: 0.4, goblin: 0.2, bolt: 1.4, beam: 2.0, necron: 0.8 };
   var P = {};
@@ -1147,6 +1147,7 @@
   function killGoblin(g){
     if (g.dead) return;
     g.dead = true;
+    g.fight = null;
     burst(g.x, g.y - 12 * S, "#8fd14f", 12);
   }
   function makeBolt(a, b){
@@ -1164,6 +1165,7 @@
   function killNecron(n){
     if (n.dead || n.spawn > 0) return;
     burst(n.x, n.y - 16 * S, "#7dffab", 14);
+    n.fight = null;
     if (Math.random() < 0.3) n.spawn = n.spawnMax = 0.9;
     else n.dead = true;
   }
@@ -1178,19 +1180,31 @@
     burst(h.x, h.y, "#8fd8ff", 5);
   }
   function spawnGoblin(){
-    goblins.push({ x: P.krenko.x - 24 * S, y: P.ground, vx: -rnd(50, 95) * S, phase: rnd(0, 6), hop: 0, vh: 0, dead: false });
+    // brawler: goblin peleador que va por los necrones; el resto ataca a Sai.
+    goblins.push({ x: P.krenko.x - 24 * S, y: P.ground, speed: rnd(50, 95) * S, dir: -1, brawler: Math.random() < 0.4,
+      phase: rnd(0, 6), hop: 0, vh: 0, dead: false, fight: null, fightT: 0 });
   }
   // Imotekh invoca un guerrero necrón: columna de luz verde desde el bastón hasta el suelo.
+  // La mitad marcha contra Krenko y la otra mitad contra Sai.
   function spawnNecron(){
-    var x = W * rnd(0.64, 0.78), a = staffTip();
-    necrons.push({ x: x, y: P.ground - 6 * S, vx: -rnd(28, 42) * S, phase: rnd(0, 6), spawn: 0.9, spawnMax: 0.9, dead: false, shoot: rnd(1.5, 3) });
+    var x = W * rnd(0.6, 0.74), a = staffTip(), dir = Math.random() < 0.5 ? 1 : -1;
+    necrons.push({ x: x, y: P.ground - 6 * S, vx: dir * rnd(28, 42) * S, phase: rnd(0, 6), spawn: 0.9, spawnMax: 0.9, dead: false, fight: null, shoot: rnd(1.5, 3) });
     warps.push({ x: x, life: 0.9, max: 0.9 });
     bolts.push({ pts: makeBolt(a, { x: x, y: P.ground - 60 * S }), life: 0.25, max: 0.25 });
   }
   // El necrón dispara su rifle gauss a un tóptero, a un goblin o a Golbez.
+  function necronFacing(n){
+    if (n.fight) return n.fight.x > n.x ? 1 : -1;
+    return n.vx > 0 ? 1 : -1;
+  }
   function necronShoot(n){
-    var from = { x: n.x - 20 * S, y: n.y - 20 * S }, r = Math.random(), p;
-    if (thopters.length && r < 0.5){
+    var from = { x: n.x + necronFacing(n) * 20 * S, y: n.y - 20 * S }, r = Math.random(), p;
+    if (n.vx > 0){
+      // los que van contra Krenko le disparan a él y a sus goblins
+      var gobs = liveGoblins();
+      if (gobs.length && r < 0.6){ var gb = pick(gobs); p = targetPos({ type: "goblin", g: gb }); killGoblin(gb); }
+      else p = targetPos({ type: "krenko" });
+    } else if (thopters.length && r < 0.5){
       var o = pick(thopters);
       p = { x: o.x, y: o.y };
       thopters.splice(thopters.indexOf(o), 1);
@@ -1208,7 +1222,8 @@
       var o = pick(thopters);
       p = { x: o.x, y: o.y };
       thopters.splice(thopters.indexOf(o), 1);
-    } else if (r < 0.75) p = targetPos({ type: "golbez" });
+    } else if (r < 0.65) p = targetPos({ type: "golbez" });
+    else if (r < 0.85) p = targetPos({ type: "krenko" });
     else p = targetPos({ type: "sai" });
     bolts.push({ pts: makeBolt(a, p), life: 0.35, max: 0.35 });
     burst(p.x, p.y, "#8dffb0", 16);
@@ -1234,6 +1249,7 @@
     t += dt;
     flash = Math.max(0, flash - dt * 2.5);
     shield = Math.max(0, shield - dt * 2);
+    krenkoSwing = Math.max(0, krenkoSwing - dt);
 
     next.thopter -= dt; if (next.thopter <= 0 && thopters.length < 12){ spawnThopter(); next.thopter = rnd(0.5, 1.0); }
     next.goblin -= dt; if (next.goblin <= 0 && goblins.length < 14){ spawnGoblin(); next.goblin = rnd(0.4, 0.9); }
@@ -1245,14 +1261,22 @@
       var nc = necrons[m];
       if (nc.dead){ necrons.splice(m, 1); continue; }
       if (nc.spawn > 0){ nc.spawn -= dt; continue; } // materializándose
+      if (nc.fight && nc.fight.dead) nc.fight = null;
+      if (nc.fight) continue; // peleando cuerpo a cuerpo con un goblin (lo resuelve el goblin)
       nc.phase += dt * 7;
       nc.x += nc.vx * dt;
       nc.shoot -= dt;
       if (nc.shoot <= 0){ necronShoot(nc); nc.shoot = rnd(1.8, 3.5); }
-      if (nc.x < P.sai.x + 50 * S){
+      if (nc.vx < 0 && nc.x < P.sai.x + 50 * S){
         burst(nc.x, nc.y - 16 * S, "#7fd3ff", 12);
         shield = 0.5;
         nc.dead = true;
+      } else if (nc.vx > 0 && nc.x > P.krenko.x - 34 * S){
+        // Krenko lo recibe a garrotazos
+        krenkoSwing = 0.4;
+        burst(nc.x + 6 * S, nc.y - 24 * S, "#ffcf6a", 10);
+        killNecron(nc);
+        if (!nc.dead) nc.vx = -Math.abs(nc.vx); // si se reanima, se da la vuelta hacia Sai
       }
     }
 
@@ -1276,14 +1300,46 @@
     for (var j = goblins.length - 1; j >= 0; j--){
       var g = goblins[j];
       if (g.dead){ goblins.splice(j, 1); continue; }
+      if (g.fight && (g.fight.dead || g.fight.spawn > 0)) g.fight = null;
+      if (g.fight){
+        // pelea cuerpo a cuerpo: chispas hasta que uno de los dos cae
+        var foe = g.fight;
+        g.dir = foe.x > g.x ? 1 : -1;
+        g.phase += dt * 22;
+        g.fightT -= dt;
+        if (Math.random() < dt * 9) burst((g.x + foe.x) / 2, g.y - 16 * S, Math.random() < 0.5 ? "#8fd14f" : "#7dffab", 3);
+        if (g.fightT <= 0){
+          foe.fight = null; g.fight = null;
+          if (Math.random() < 0.5) killGoblin(g); else killNecron(foe);
+        }
+        continue;
+      }
+      g.dir = -1;
+      if (g.brawler){
+        var foeN = null, best = Infinity;
+        necrons.forEach(function(nn){
+          if (nn.dead || nn.spawn > 0 || nn.fight) return;
+          var dd = Math.abs(nn.x - g.x);
+          if (dd < best){ best = dd; foeN = nn; }
+        });
+        if (foeN){
+          g.dir = foeN.x > g.x ? 1 : -1;
+          if (best < 14 * S){
+            g.fight = foeN; foeN.fight = g;
+            g.fightT = rnd(0.8, 1.6);
+            g.hop = 0; g.vh = 0;
+            continue;
+          }
+        }
+      }
       g.phase += dt * 14;
-      g.x += g.vx * dt;
+      g.x += g.dir * g.speed * dt;
       if (g.hop > 0 || g.vh > 0){
         g.vh -= 520 * S * dt;
         g.hop = Math.max(0, g.hop + g.vh * dt);
         if (g.hop === 0) g.vh = 0;
       } else if (Math.random() < dt * 0.5) g.vh = rnd(140, 210) * S;
-      if (g.x < P.sai.x + 50 * S){
+      if (g.dir < 0 && g.x < P.sai.x + 50 * S){
         burst(g.x, g.y - 14 * S, "#7fd3ff", 10);
         shield = 0.5;
         g.dead = true;
@@ -1385,7 +1441,10 @@
     ctx.fillStyle = "#6b4424"; ellipse(0, -28, 13, 15); ctx.fill();
     ctx.lineCap = "round";
     ctx.strokeStyle = "#6f9a3a"; ctx.lineWidth = 5; line([8,-34, 18,-22]); ctx.stroke();
-    ctx.strokeStyle = "#7a5230"; ctx.lineWidth = 5; line([18,-22, 24,-50]); ctx.stroke();
+    // garrote: en reposo apunta arriba; al dar un garrotazo baja hacia la izquierda
+    ctx.strokeStyle = "#7a5230"; ctx.lineWidth = 5;
+    if (krenkoSwing > 0) line([18,-22, -16,-18]); else line([18,-22, 24,-50]);
+    ctx.stroke();
     ctx.strokeStyle = "#6f9a3a"; ctx.lineWidth = 5; line([-8,-36, -30,-46 + Math.sin(t * 6) * 4]); ctx.stroke();
     ctx.fillStyle = "#b3261e"; ellipse(0, -41, 11, 4); ctx.fill();
     line([6,-41, 17,-33, 8,-36]); ctx.closePath(); ctx.fill();
@@ -1407,7 +1466,7 @@
 
   function drawGoblin(g){
     var leg = Math.sin(g.phase) * 6;
-    ctx.save(); ctx.translate(g.x, g.y); ctx.scale(S * 0.55, S * 0.55);
+    ctx.save(); ctx.translate(g.x, g.y); ctx.scale(S * 0.55 * (g.dir > 0 ? -1 : 1), S * 0.55);
     ctx.fillStyle = "rgba(0,0,0,.3)"; ellipse(0, 0, 12, 3); ctx.fill();
     ctx.translate(0, -g.hop / (S * 0.55));
     ctx.lineCap = "round";
@@ -1427,7 +1486,7 @@
   // Mientras se materializa aparece de abajo hacia arriba con líneas de escaneo.
   function drawNecron(n){
     var k = S * 0.62, leg = Math.sin(n.phase) * 5, appear = n.spawn > 0 ? 1 - n.spawn / n.spawnMax : 1;
-    ctx.save(); ctx.translate(n.x, n.y); ctx.scale(k, k);
+    ctx.save(); ctx.translate(n.x, n.y); ctx.scale(k * (necronFacing(n) > 0 ? -1 : 1), k);
     ctx.globalAlpha = 0.25 + appear * 0.75;
     ctx.fillStyle = "rgba(0,0,0,.3)"; ellipse(0, 0, 13, 3); ctx.fill();
     if (appear < 1){ ctx.beginPath(); ctx.rect(-40, -64 * appear - 2, 80, 66 * appear + 4); ctx.clip(); }
