@@ -167,6 +167,18 @@
   .chat-msg .time{ color:var(--muted); font-size:10.5px; margin-left:6px; }
   .chat-input-row{ display:flex; gap:8px; margin-top:12px; }
   .chat-input-row input{ flex:1; }
+  .chat-tabs{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .chat-tabs button.active{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .chat-tabs .count{ font-weight:600; opacity:.85; }
+  .chat-head{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap; }
+  .link-btn{ background:none; border:none; padding:0; color:var(--accent); font-weight:700; font-size:12.5px; cursor:pointer; font-family:var(--font-body); }
+
+  /* ---------- tiendas cercanas ---------- */
+  .map-frame{ width:100%; height:460px; border:1px solid var(--border); border-radius:12px; display:block; background:var(--surface-2); }
+  @media (max-width:700px){ .map-frame{ height:360px; } }
+  .map-toolbar{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+  .map-toolbar button.active{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .map-toolbar .spacer{ flex:1; }
 
   footer.note{ color:var(--muted); font-size:11.5px; text-align:center; padding-top:6px; }
 </style>
@@ -198,13 +210,13 @@
       <form id="registerForm" hidden style="margin-top:16px; display:flex; flex-direction:column; gap:12px;">
         <div class="field"><label for="regNick">Nick</label><input id="regNick" type="text" required placeholder="3-24 caracteres" autocomplete="username"></div>
         <div class="field"><label for="regPass">Contraseña</label><input id="regPass" type="password" required autocomplete="new-password"></div>
-        <div class="field"><label for="regUrb">Urbanización <span style="font-weight:400">(opcional, para el chat de tu zona)</span></label><input id="regUrb" type="text" placeholder="Ej. Las Orquídeas"></div>
-        <div class="field"><label for="regDist">Distrito <span style="font-weight:400">(opcional)</span></label><input id="regDist" type="text" placeholder="Ej. La Molina"></div>
+        <div class="field"><label for="regUrb">Urbanización</label><input id="regUrb" type="text" required placeholder="Ej. Las Orquídeas"></div>
+        <div class="field"><label for="regDist">Distrito</label><input id="regDist" type="text" required placeholder="Ej. La Molina"></div>
         <button type="submit" class="btn primary block" id="registerBtn">Crear cuenta y entrar</button>
         <div class="form-msg" id="registerMsg" aria-live="polite"></div>
       </form>
     </div>
-    <p class="auth-note">Necesitas una cuenta para publicar, comprar y usar el chat de tu zona. Tu urbanización y distrito nunca se muestran a otros — solo te agrupan en el chat correspondiente.</p>
+    <p class="auth-note">Necesitas una cuenta para publicar, comprar y usar los chats de tu distrito y tu urbanización. Tu zona solo se usa para agruparte en esos chats y mostrarte tiendas cercanas.</p>
   </div>
 </div>
 
@@ -220,6 +232,7 @@
     <button type="button" class="nav-btn active" data-tab="venta">Venta</button>
     <button type="button" class="nav-btn" data-tab="compra">Compra</button>
     <button type="button" class="nav-btn" data-tab="social">Social</button>
+    <button type="button" class="nav-btn" data-tab="tiendas">Tiendas cercanas</button>
     <div class="user-box">
       <span class="who" id="whoNick"></span>
       <button type="button" class="btn small" id="logoutBtn">Cerrar sesión</button>
@@ -346,7 +359,7 @@
     <section id="tabSocial" hidden>
       <section class="card" id="locationCard">
         <h2>Tu zona</h2>
-        <span class="hint">Regístrala para entrar al chat de jugadores de tu urbanización y distrito.</span>
+        <span class="hint">Regístrala para entrar al chat de tu distrito y al de tu urbanización.</span>
         <div class="location-form">
           <div class="field"><label for="socUrb">Urbanización</label><input id="socUrb" type="text" placeholder="Ej. Las Orquídeas"></div>
           <div class="field"><label for="socDist">Distrito</label><input id="socDist" type="text" placeholder="Ej. La Molina"></div>
@@ -356,14 +369,37 @@
       </section>
 
       <section class="card" id="chatCard" hidden>
-        <h2>Chat de tu zona</h2>
+        <div class="chat-head">
+          <h2 id="chatTitle">Chat</h2>
+          <button type="button" class="link-btn" id="changeZoneBtn">Cambiar mi zona</button>
+        </div>
         <div class="group-info" id="groupInfo"></div>
+        <div class="chat-tabs" role="tablist">
+          <button type="button" class="btn small active" data-canal="distrito" id="chatTabDistrito">Distrito</button>
+          <button type="button" class="btn small" data-canal="urbanizacion" id="chatTabUrbanizacion">Urbanización</button>
+        </div>
         <div class="chat-messages" id="chatMessages"></div>
         <div class="chat-input-row">
           <input id="chatInput" type="text" placeholder="Escribe un mensaje…" maxlength="500">
           <button type="button" class="btn primary" id="chatSendBtn">Enviar</button>
         </div>
         <div class="form-msg" id="chatMsg" aria-live="polite"></div>
+      </section>
+    </section>
+
+    <!-- ===== TIENDAS CERCANAS ===== -->
+    <section id="tabTiendas" hidden>
+      <section class="card">
+        <h2>Tiendas cercanas</h2>
+        <span class="hint" id="mapHint">Tiendas de Magic cerca de la zona que registraste. Toca una chinche para ver la dirección, el horario y cómo llegar.</span>
+        <div class="map-toolbar" id="mapToolbar">
+          <button type="button" class="btn small active" data-q="magic">Magic: The Gathering</button>
+          <button type="button" class="btn small" data-q="cartas">Juegos de cartas y mesa</button>
+          <span class="spacer"></span>
+          <a class="btn small" id="mapOpenLink" href="#" target="_blank" rel="noopener">Abrir en Google Maps</a>
+        </div>
+        <iframe class="map-frame" id="mapFrame" title="Mapa de tiendas cercanas" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+        <div class="empty-state" id="mapEmpty" hidden>Registra tu urbanización y distrito en <strong>Social</strong> para ver las tiendas cercanas.</div>
       </section>
     </section>
 
@@ -388,7 +424,7 @@
     "loginNick","loginPass","loginBtn","loginMsg",
     "regNick","regPass","regUrb","regDist","registerBtn","registerMsg",
     "appShell","whoNick","logoutBtn",
-    "tabVenta","tabCompra","tabSocial",
+    "tabVenta","tabCompra","tabSocial","tabTiendas",
     "cardSearch","suggestBox","searchMsg","preview","previewImg","previewName","previewSet",
     "edicionSelect","foilToggle","foilCheck",
     "previewMult","previewPrice","previewSub","publishForm","condicion","precioPen","whatsapp",
@@ -399,6 +435,8 @@
     "listingSearch","refreshBtn","listingsGrid",
     "locationCard","socUrb","socDist","socSaveBtn","socMsg",
     "chatCard","groupInfo","chatMessages","chatInput","chatSendBtn","chatMsg",
+    "chatTitle","changeZoneBtn","chatTabDistrito","chatTabUrbanizacion",
+    "mapHint","mapToolbar","mapOpenLink","mapFrame","mapEmpty",
     "toast"
   ].forEach(function(id){ els[id] = document.getElementById(id); });
 
@@ -478,10 +516,12 @@
     btn.addEventListener("click", function(){
       document.querySelectorAll(".nav-btn[data-tab]").forEach(function(b){ b.classList.remove("active"); });
       btn.classList.add("active");
-      ["Venta","Compra","Social"].forEach(function(name){
+      ["Venta","Compra","Social","Tiendas"].forEach(function(name){
         els["tab" + name].hidden = (name.toLowerCase() !== btn.dataset.tab);
       });
+      if (btn.dataset.tab !== "social" && chatPoll){ clearInterval(chatPoll); chatPoll = null; }
       if (btn.dataset.tab === "social") refreshSocial();
+      if (btn.dataset.tab === "tiendas") renderMap();
       if (btn.dataset.tab === "compra") refresh(false);
       if (btn.dataset.tab === "venta") refreshMyListings();
     });
@@ -874,8 +914,12 @@
     }).actualizarUbicacion(loadToken(), els.socUrb.value, els.socDist.value);
   });
 
+  var canalActual = "distrito";   // "distrito" | "urbanizacion"
+  var grupoInfo = null;
+
   function refreshSocial(){
     google.script.run.withSuccessHandler(function(info){
+      grupoInfo = info;
       if (!info.tieneGrupo){
         els.locationCard.hidden = false;
         els.chatCard.hidden = true;
@@ -884,16 +928,52 @@
       }
       els.locationCard.hidden = true;
       els.chatCard.hidden = false;
-      els.groupInfo.innerHTML = "Chat de <strong>" + esc(info.urbanizacion) + ", " + esc(info.distrito) + "</strong> · " +
-        info.miembros + (info.miembros === 1 ? " persona registrada en tu zona." : " personas registradas en tu zona.");
+      var c = info.canales;
+      if (!c[canalActual].disponible) canalActual = c.distrito.disponible ? "distrito" : "urbanizacion";
+      els.chatTabDistrito.innerHTML = "Distrito: " + esc(c.distrito.nombre || "—") +
+        (c.distrito.disponible ? ' <span class="count">(' + c.distrito.miembros + ')</span>' : "");
+      els.chatTabUrbanizacion.innerHTML = "Urbanización: " + esc(c.urbanizacion.nombre || "—") +
+        (c.urbanizacion.disponible ? ' <span class="count">(' + c.urbanizacion.miembros + ')</span>' : "");
+      els.chatTabDistrito.disabled = !c.distrito.disponible;
+      els.chatTabUrbanizacion.disabled = !c.urbanizacion.disponible;
+      pintarCanal();
       loadChat();
       if (chatPoll) clearInterval(chatPoll);
       chatPoll = setInterval(loadChat, 8000);
     }).withFailureHandler(function(){}).obtenerGrupoInfo(loadToken());
   }
 
+  function pintarCanal(){
+    if (!grupoInfo) return;
+    var c = grupoInfo.canales[canalActual];
+    els.chatTabDistrito.classList.toggle("active", canalActual === "distrito");
+    els.chatTabUrbanizacion.classList.toggle("active", canalActual === "urbanizacion");
+    els.chatTitle.textContent = (canalActual === "distrito" ? "Chat del distrito " : "Chat de la urbanización ") +
+      (c.nombre || "") + " (" + c.miembros + ")";
+    els.groupInfo.textContent = c.miembros + (c.miembros === 1 ? " persona" : " personas") +
+      (canalActual === "distrito" ? " registradas en tu distrito." : " registradas en tu urbanización.");
+  }
+
+  [els.chatTabDistrito, els.chatTabUrbanizacion].forEach(function(btn){
+    btn.addEventListener("click", function(){
+      if (btn.disabled || canalActual === btn.dataset.canal) return;
+      canalActual = btn.dataset.canal;
+      els.chatMessages.innerHTML = "";
+      els.chatMsg.textContent = "";
+      pintarCanal();
+      loadChat();
+    });
+  });
+
+  els.changeZoneBtn.addEventListener("click", function(){
+    els.locationCard.hidden = !els.locationCard.hidden;
+  });
+
   function loadChat(){
-    google.script.run.withSuccessHandler(renderChat).withFailureHandler(function(){}).listarMensajes(loadToken());
+    var canal = canalActual;
+    google.script.run.withSuccessHandler(function(msgs){
+      if (canal === canalActual) renderChat(msgs);
+    }).withFailureHandler(function(){}).listarMensajes(loadToken(), canal);
   }
   function renderChat(msgs){
     var atBottom = els.chatMessages.scrollTop + els.chatMessages.clientHeight >= els.chatMessages.scrollHeight - 30;
@@ -909,18 +989,58 @@
     if (!texto) return;
     els.chatMsg.textContent = "";
     els.chatSendBtn.disabled = true;
+    var canal = canalActual;
     google.script.run.withSuccessHandler(function(msgs){
       els.chatSendBtn.disabled = false;
       els.chatInput.value = "";
+      if (canal !== canalActual) return;
       renderChat(msgs);
       els.chatMessages.scrollTop = els.chatMessages.scrollHeight;
     }).withFailureHandler(function(err){
       els.chatSendBtn.disabled = false;
       els.chatMsg.textContent = err && err.message ? err.message : "No se pudo enviar.";
-    }).enviarMensaje(loadToken(), texto);
+    }).enviarMensaje(loadToken(), texto, canal);
   }
   els.chatSendBtn.addEventListener("click", sendChat);
   els.chatInput.addEventListener("keydown", function(e){ if (e.key === "Enter") sendChat(); });
+
+  // ================= tiendas cercanas =================
+  // Mapa de Google (embed sin API key): busca tiendas alrededor de la zona del usuario
+  // y las marca con chinches.
+  var mapTipo = "magic";
+  var MAP_BUSQUEDAS = {
+    magic: "tiendas Magic The Gathering",
+    cartas: "tienda de juegos de cartas y juegos de mesa"
+  };
+
+  function renderMap(){
+    var urb = currentUser && currentUser.urbanizacion;
+    var dist = currentUser && currentUser.distrito;
+    if (!urb && !dist){
+      els.mapFrame.hidden = true;
+      els.mapToolbar.hidden = true;
+      els.mapEmpty.hidden = false;
+      return;
+    }
+    els.mapFrame.hidden = false;
+    els.mapToolbar.hidden = false;
+    els.mapEmpty.hidden = true;
+    var zona = [urb, dist, "Perú"].filter(Boolean).join(", ");
+    var q = MAP_BUSQUEDAS[mapTipo] + " cerca de " + zona;
+    var src = "https://maps.google.com/maps?q=" + encodeURIComponent(q) + "&hl=es&z=13&output=embed";
+    if (els.mapFrame.getAttribute("src") !== src) els.mapFrame.setAttribute("src", src);
+    els.mapOpenLink.href = "https://www.google.com/maps/search/" + encodeURIComponent(q);
+    els.mapHint.textContent = "Tiendas cerca de " + [urb, dist].filter(Boolean).join(", ") +
+      ". Toca una chinche para ver la dirección, el horario y cómo llegar.";
+  }
+
+  els.mapToolbar.querySelectorAll("button[data-q]").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      mapTipo = btn.dataset.q;
+      els.mapToolbar.querySelectorAll("button[data-q]").forEach(function(b){ b.classList.toggle("active", b === btn); });
+      renderMap();
+    });
+  });
 
   // ================= arranque =================
   function initAppData(){

@@ -193,7 +193,8 @@ function registrarUsuario(nick, password, urbanizacion, distrito) {
   var hash = hashPassword_(password, salt);
   var urb = (urbanizacion || '').toString().trim();
   var dist = (distrito || '').toString().trim();
-  var grupoKey = (urb && dist) ? normalizarTexto_(urb + '|' + dist) : '';
+  if (!urb || !dist) throw new Error('Escribe tu urbanización y tu distrito.');
+  var grupoKey = normalizarTexto_(urb + '|' + dist);
 
   var lock = LockService.getScriptLock();
   lock.waitLock(15000);
@@ -274,7 +275,8 @@ function actualizarUbicacion(token, urbanizacion, distrito) {
   if (!user) throw new Error('Debes iniciar sesión.');
   var urb = (urbanizacion || '').toString().trim();
   var dist = (distrito || '').toString().trim();
-  var grupoKey = (urb && dist) ? normalizarTexto_(urb + '|' + dist) : '';
+  if (!urb || !dist) throw new Error('Escribe tu urbanización y tu distrito.');
+  var grupoKey = normalizarTexto_(urb + '|' + dist);
 
   var usuarios = getUsuariosSheet_();
   var last = usuarios.getLastRow();
@@ -481,29 +483,49 @@ function eliminarListado(token, id) {
   return listarMisListados(token);
 }
 
-// ---------- social: ubicación y chat grupal ----------
+// ---------- social: ubicación y chats (distrito y urbanización) ----------
+
+// El chat de urbanización usa el mismo GrupoKey de siempre (urbanización|distrito),
+// así se conservan los mensajes anteriores. El del distrito lleva su propio prefijo.
+function claveCanal_(user, canal) {
+  if (canal === 'distrito') {
+    var dist = normalizarTexto_(user.distrito);
+    return dist ? '#distrito|' + dist : '';
+  }
+  return user.grupoKey || '';
+}
 
 function obtenerGrupoInfo(token) {
   var user = obtenerUsuarioPorToken_(token);
   if (!user) throw new Error('Debes iniciar sesión.');
-  if (!user.grupoKey) return { tieneGrupo: false };
 
+  var distNorm = normalizarTexto_(user.distrito);
+  var enDistrito = 0, enUrbanizacion = 0;
   var usuarios = getUsuariosSheet_();
   var last = usuarios.getLastRow();
-  var count = 0;
   if (last >= 2) {
     var values = usuarios.getRange(2, 1, last - 1, USUARIOS_HEADERS.length).getValues();
     for (var i = 0; i < values.length; i++) {
-      if (values[i][7] === user.grupoKey) count++;
+      if (distNorm && normalizarTexto_(values[i][6]) === distNorm) enDistrito++;
+      if (user.grupoKey && values[i][7] === user.grupoKey) enUrbanizacion++;
     }
   }
-  return { tieneGrupo: true, urbanizacion: user.urbanizacion, distrito: user.distrito, miembros: count };
+  return {
+    tieneGrupo: !!(distNorm || user.grupoKey),
+    urbanizacion: user.urbanizacion,
+    distrito: user.distrito,
+    canales: {
+      distrito: { disponible: !!distNorm, nombre: user.distrito, miembros: enDistrito },
+      urbanizacion: { disponible: !!user.grupoKey, nombre: user.urbanizacion, miembros: enUrbanizacion }
+    }
+  };
 }
 
-function listarMensajes(token) {
+function listarMensajes(token, canal) {
   var user = obtenerUsuarioPorToken_(token);
   if (!user) throw new Error('Debes iniciar sesión.');
-  if (!user.grupoKey) return [];
+  var clave = claveCanal_(user, canal);
+  if (!clave) return [];
 
   var sheet = getMensajesSheet_();
   var last = sheet.getLastRow();
@@ -512,7 +534,7 @@ function listarMensajes(token) {
   var out = [];
   for (var i = 0; i < values.length; i++) {
     var row = values[i];
-    if (row[1] !== user.grupoKey) continue;
+    if (row[1] !== clave) continue;
     out.push({
       id: row[0],
       nick: row[2],
@@ -524,10 +546,13 @@ function listarMensajes(token) {
   return out.slice(-150);
 }
 
-function enviarMensaje(token, texto) {
+function enviarMensaje(token, texto, canal) {
   var user = obtenerUsuarioPorToken_(token);
   if (!user) throw new Error('Debes iniciar sesión.');
-  if (!user.grupoKey) throw new Error('Registra tu urbanización y distrito para entrar al chat.');
+  var clave = claveCanal_(user, canal);
+  if (!clave) throw new Error(canal === 'distrito'
+    ? 'Registra tu distrito para entrar a este chat.'
+    : 'Registra tu urbanización y distrito para entrar a este chat.');
   texto = (texto || '').toString().trim();
   if (!texto) throw new Error('Escribe un mensaje.');
   if (texto.length > 500) throw new Error('El mensaje es demasiado largo.');
@@ -536,11 +561,11 @@ function enviarMensaje(token, texto) {
   lock.waitLock(15000);
   try {
     var sheet = getMensajesSheet_();
-    sheet.appendRow([Utilities.getUuid(), user.grupoKey, user.nick, texto, new Date()]);
+    sheet.appendRow([Utilities.getUuid(), clave, user.nick, texto, new Date()]);
   } finally {
     lock.releaseLock();
   }
-  return listarMensajes(token);
+  return listarMensajes(token, canal);
 }
 
 // ---------- importación masiva desde Moxfield ----------
@@ -698,6 +723,25 @@ function importarDesdeMoxfield(texto) {
   return { encontradas: encontradas, noEncontradas: noEncontradas, tipoCambio: fx };
 }
 
+
+// Borra todas las cartas publicadas (deja el mercado en cero). Antes copia la hoja
+// "Listados" a una pestaña de respaldo con la fecha. Se ejecuta a mano desde el editor.
+function reiniciarCartas() {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var sheet = getSheet_();
+    var ss = sheet.getParent();
+    var stamp = Utilities.formatDate(new Date(), 'America/Lima', 'yyyy-MM-dd HH.mm');
+    sheet.copyTo(ss).setName('Listados respaldo ' + stamp);
+    var last = sheet.getLastRow();
+    // clearContent en vez de deleteRows: Sheets no deja borrar todas las filas no congeladas.
+    if (last >= 2) sheet.getRange(2, 1, last - 1, sheet.getLastColumn()).clearContent();
+    Logger.log('Cartas borradas: ' + Math.max(0, last - 1) + '. Respaldo: Listados respaldo ' + stamp);
+  } finally {
+    lock.releaseLock();
+  }
+}
 
 function testDumpListados(){
   var ss = SpreadsheetApp.openById('1qUBPiAmY-dm7pS42q22gLcgYUVsZqa_okU1me-fJGPE');
