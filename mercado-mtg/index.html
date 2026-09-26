@@ -10,8 +10,11 @@
   </style>
 </head>
 <body>
-  <!-- La app corre en Google Apps Script (ver apps-script/); aquí solo se muestra. -->
+  <!-- La app corre en Google Apps Script (ver apps-script/); aquí solo se muestra.
+       credentialless: carga sin las sesiones de Google del visitante, así no falla
+       cuando hay varias cuentas abiertas. -->
   <iframe
+    credentialless
     src="https://script.google.com/macros/s/AKfycbxn5R4v8c-0SpumGkuwnUhzcjhSr6-o_EBaoj8Uclo5RU7NEfcepyT0vcri1yPnnynd3Q/exec"
     title="Mercado MTG"
     allow="clipboard-write"></iframe>
