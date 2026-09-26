@@ -1071,7 +1071,8 @@
 <script>
 // Fondo animado de la pantalla de ingreso: escena original dibujada en canvas.
 // Sai lanza tópteros, Krenko manda su horda de goblins, Imotekh invoca relámpagos
-// y Golbez dispara rayos con sus cuatro cristales. Se detiene al entrar a la app.
+// y guerreros necrones, y Golbez dispara rayos con sus cuatro cristales.
+// Se detiene al entrar a la app.
 (function(){
   "use strict";
   var screenEl = document.getElementById("authScreen");
@@ -1080,8 +1081,8 @@
   var ctx = canvas.getContext("2d");
   var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var W = 0, H = 0, S = 1, t = 0, last = 0, flash = 0, shield = 0;
-  var stars = [], thopters = [], goblins = [], sparks = [], bolts = [], beams = [];
-  var next = { thopter: 0.4, goblin: 0.2, bolt: 1.4, beam: 2.0 };
+  var stars = [], thopters = [], goblins = [], necrons = [], sparks = [], bolts = [], beams = [], shots = [], warps = [];
+  var next = { thopter: 0.4, goblin: 0.2, bolt: 1.4, beam: 2.0, necron: 0.8 };
   var P = {};
   var CRYSTALS = ["#63d4ff", "#ff5d5d", "#63ff8f", "#ffd84a"];
 
@@ -1129,6 +1130,7 @@
   }
   function targetPos(tg){
     if (tg.type === "goblin") return { x: tg.g.x, y: tg.g.y - tg.g.hop - 12 * S };
+    if (tg.type === "necron") return { x: tg.n.x, y: tg.n.y - 16 * S };
     if (tg.type === "golbez") return { x: P.golbez.x, y: golbezY() - 62 * S };
     if (tg.type === "imotekh") return { x: P.imotekh.x, y: imotekhY() - 70 * S };
     if (tg.type === "krenko") return { x: P.krenko.x, y: P.krenko.y - 42 * S };
@@ -1157,17 +1159,48 @@
     return pts;
   }
   function liveGoblins(){ return goblins.filter(function(g){ return !g.dead; }); }
+  function liveNecrons(){ return necrons.filter(function(n){ return !n.dead && n.spawn <= 0; }); }
+  // Protocolo de reanimación: a veces el necrón destruido se vuelve a armar.
+  function killNecron(n){
+    if (n.dead || n.spawn > 0) return;
+    burst(n.x, n.y - 16 * S, "#7dffab", 14);
+    if (Math.random() < 0.3) n.spawn = n.spawnMax = 0.9;
+    else n.dead = true;
+  }
 
   // ---------- acciones de cada personaje ----------
   function spawnThopter(){
-    var h = saiHand(), alive = liveGoblins(), r = Math.random(), tg;
-    if (alive.length && r < 0.5) tg = { type: "goblin", g: pick(alive) };
-    else tg = { type: r < 0.75 ? "golbez" : "imotekh" };
+    var h = saiHand(), alive = liveGoblins(), necs = liveNecrons(), r = Math.random(), tg;
+    if (alive.length && r < 0.35) tg = { type: "goblin", g: pick(alive) };
+    else if (necs.length && r < 0.65) tg = { type: "necron", n: pick(necs) };
+    else tg = { type: r < 0.83 ? "golbez" : "imotekh" };
     thopters.push({ x: h.x, y: h.y, vx: rnd(60, 120) * S, vy: rnd(-90, -30) * S, phase: rnd(0, 6), tg: tg, age: 0 });
     burst(h.x, h.y, "#8fd8ff", 5);
   }
   function spawnGoblin(){
     goblins.push({ x: P.krenko.x - 24 * S, y: P.ground, vx: -rnd(50, 95) * S, phase: rnd(0, 6), hop: 0, vh: 0, dead: false });
+  }
+  // Imotekh invoca un guerrero necrón: columna de luz verde desde el bastón hasta el suelo.
+  function spawnNecron(){
+    var x = W * rnd(0.64, 0.78), a = staffTip();
+    necrons.push({ x: x, y: P.ground - 6 * S, vx: -rnd(28, 42) * S, phase: rnd(0, 6), spawn: 0.9, spawnMax: 0.9, dead: false, shoot: rnd(1.5, 3) });
+    warps.push({ x: x, life: 0.9, max: 0.9 });
+    bolts.push({ pts: makeBolt(a, { x: x, y: P.ground - 60 * S }), life: 0.25, max: 0.25 });
+  }
+  // El necrón dispara su rifle gauss a un tóptero, a un goblin o a Golbez.
+  function necronShoot(n){
+    var from = { x: n.x - 20 * S, y: n.y - 20 * S }, r = Math.random(), p;
+    if (thopters.length && r < 0.5){
+      var o = pick(thopters);
+      p = { x: o.x, y: o.y };
+      thopters.splice(thopters.indexOf(o), 1);
+    } else {
+      var alive = liveGoblins();
+      if (alive.length && r < 0.8){ var g = pick(alive); p = targetPos({ type: "goblin", g: g }); killGoblin(g); }
+      else p = targetPos({ type: "golbez" });
+    }
+    shots.push({ from: from, to: p, life: 0.22, max: 0.22 });
+    burst(p.x, p.y, "#7dffab", 8);
   }
   function fireBolt(){
     var a = staffTip(), r = Math.random(), p;
@@ -1182,12 +1215,16 @@
     flash = 0.35;
   }
   function fireBeam(){
-    var i = Math.floor(Math.random() * 4), alive = liveGoblins(), r = Math.random(), p;
-    if (alive.length && r < 0.4){
+    var i = Math.floor(Math.random() * 4), alive = liveGoblins(), necs = liveNecrons(), r = Math.random(), p;
+    if (alive.length && r < 0.3){
       var g = pick(alive);
       p = targetPos({ type: "goblin", g: g });
       killGoblin(g);
-    } else if (r < 0.8) p = targetPos({ type: "imotekh" });
+    } else if (necs.length && r < 0.6){
+      var n = pick(necs);
+      p = targetPos({ type: "necron", n: n });
+      killNecron(n);
+    } else if (r < 0.85) p = targetPos({ type: "imotekh" });
     else p = targetPos({ type: "krenko" });
     beams.push({ i: i, to: p, life: 0.5, max: 0.5 });
     burst(p.x, p.y, CRYSTALS[i], 16);
@@ -1202,11 +1239,28 @@
     next.goblin -= dt; if (next.goblin <= 0 && goblins.length < 14){ spawnGoblin(); next.goblin = rnd(0.4, 0.9); }
     next.bolt -= dt; if (next.bolt <= 0){ fireBolt(); next.bolt = rnd(1.2, 2.2); }
     next.beam -= dt; if (next.beam <= 0){ fireBeam(); next.beam = rnd(1.6, 2.6); }
+    next.necron -= dt; if (next.necron <= 0 && necrons.length < 8){ spawnNecron(); next.necron = rnd(1.4, 2.4); }
+
+    for (var m = necrons.length - 1; m >= 0; m--){
+      var nc = necrons[m];
+      if (nc.dead){ necrons.splice(m, 1); continue; }
+      if (nc.spawn > 0){ nc.spawn -= dt; continue; } // materializándose
+      nc.phase += dt * 7;
+      nc.x += nc.vx * dt;
+      nc.shoot -= dt;
+      if (nc.shoot <= 0){ necronShoot(nc); nc.shoot = rnd(1.8, 3.5); }
+      if (nc.x < P.sai.x + 50 * S){
+        burst(nc.x, nc.y - 16 * S, "#7fd3ff", 12);
+        shield = 0.5;
+        nc.dead = true;
+      }
+    }
 
     for (var i = thopters.length - 1; i >= 0; i--){
       var o = thopters[i];
       o.age += dt; o.phase += dt * 32;
       if (o.tg.type === "goblin" && o.tg.g.dead) o.tg = { type: "krenko" };
+      if (o.tg.type === "necron" && (o.tg.n.dead || o.tg.n.spawn > 0)) o.tg = { type: "imotekh" };
       var p = targetPos(o.tg), dx = p.x - o.x, dy = p.y - o.y, d = Math.sqrt(dx * dx + dy * dy) || 1, sp = 190 * S, k = Math.min(1, dt * 2.4);
       o.vx += (dx / d * sp - o.vx) * k;
       o.vy += (dy / d * sp - o.vy) * k + Math.sin(o.age * 9) * 20 * S * dt;
@@ -1214,6 +1268,7 @@
       if (d < 16 * S){
         burst(o.x, o.y, "#ffcf6a", 14);
         if (o.tg.type === "goblin") killGoblin(o.tg.g);
+        if (o.tg.type === "necron") killNecron(o.tg.n);
         thopters.splice(i, 1);
       } else if (o.age > 9) thopters.splice(i, 1);
     }
@@ -1235,7 +1290,7 @@
       }
     }
 
-    [bolts, beams, sparks].forEach(function(list){
+    [bolts, beams, sparks, shots, warps].forEach(function(list){
       for (var n = list.length - 1; n >= 0; n--){
         var e = list[n];
         e.life -= dt;
@@ -1368,6 +1423,48 @@
     ctx.restore();
   }
 
+  // Guerrero necrón: esqueleto metálico con ojos verdes y rifle gauss brillante.
+  // Mientras se materializa aparece de abajo hacia arriba con líneas de escaneo.
+  function drawNecron(n){
+    var k = S * 0.62, leg = Math.sin(n.phase) * 5, appear = n.spawn > 0 ? 1 - n.spawn / n.spawnMax : 1;
+    ctx.save(); ctx.translate(n.x, n.y); ctx.scale(k, k);
+    ctx.globalAlpha = 0.25 + appear * 0.75;
+    ctx.fillStyle = "rgba(0,0,0,.3)"; ellipse(0, 0, 13, 3); ctx.fill();
+    if (appear < 1){ ctx.beginPath(); ctx.rect(-40, -64 * appear - 2, 80, 66 * appear + 4); ctx.clip(); }
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#8f9995"; ctx.lineWidth = 3;
+    line([-2,-24, -6 + leg,0]); ctx.stroke(); line([2,-24, 6 - leg,0]); ctx.stroke();
+    ctx.fillStyle = "#7d8784"; line([-8,-46, 8,-46, 5,-24, -5,-24]); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "#4e5653"; ctx.lineWidth = 1.2;
+    for (var yy = -42; yy < -26; yy += 5){ line([-6,yy, 6,yy]); ctx.stroke(); }
+    ctx.fillStyle = "#6b7572"; ellipse(-8, -46, 4, 3); ctx.fill(); ellipse(8, -46, 4, 3); ctx.fill();
+    ctx.strokeStyle = "#8f9995"; ctx.lineWidth = 3; line([-6,-44, -16,-36, -26,-38]); ctx.stroke();
+    ctx.strokeStyle = "#3b403e"; ctx.lineWidth = 4; line([-8,-34, -34,-40]); ctx.stroke();
+    ctx.strokeStyle = "#7dffab"; ctx.lineWidth = 1.6; line([-12,-35.5, -30,-39.5]); ctx.stroke();
+    glow(-34, -40, 7, "80,255,140", 0.7);
+    ctx.fillStyle = "#b9c2be"; ellipse(0, -54, 6, 7); ctx.fill();
+    ctx.fillStyle = "#838c88"; ctx.fillRect(-4, -49, 8, 3);
+    glow(-1, -55, 6, "80,255,140", 0.8);
+    ctx.fillStyle = "#b6ffd0"; ctx.fillRect(-4, -56, 2.5, 1.8); ctx.fillRect(0.5, -56, 2.5, 1.8);
+    ctx.restore();
+    if (appear < 1){
+      ctx.save(); ctx.strokeStyle = "rgba(125,255,171," + (0.8 * (1 - appear)) + ")"; ctx.lineWidth = 1;
+      for (var s = 0; s < 4; s++){
+        var ly = n.y - (64 * appear) * k + s * 3 * k;
+        line([n.x - 18 * k, ly, n.x + 18 * k, ly]); ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
+  function drawWarp(w){
+    var a = w.life / w.max, top = P.ground - 150 * S, wd = 26 * S * (0.5 + a * 0.5);
+    var g = ctx.createLinearGradient(0, top, 0, P.ground);
+    g.addColorStop(0, "rgba(80,255,140,0)"); g.addColorStop(1, "rgba(80,255,140," + (0.45 * a) + ")");
+    ctx.fillStyle = g; ctx.fillRect(w.x - wd / 2, top, wd, P.ground - top);
+    glow(w.x, P.ground - 6 * S, 34 * S, "80,255,140", 0.5 * a);
+  }
+
   // Imotekh, señor de las tormentas: rey metálico con tocado dorado y bastón de luz verde.
   function drawImotekh(){
     var k = S * 1.1, y = imotekhY();
@@ -1473,10 +1570,13 @@
     for (i = 0; i < 4; i++) if (Math.sin(crystalAngle(i)) >= 0) drawCrystal(i);
     drawSai();
     drawKrenko();
+    warps.forEach(drawWarp);
+    necrons.forEach(drawNecron);
     goblins.forEach(drawGoblin);
     thopters.forEach(drawThopter);
     beams.forEach(function(b){ drawZap([crystalPos(b.i), b.to], CRYSTALS[b.i], CRYSTALS[b.i], 6 * S * (b.life / b.max) + 1, b.life / b.max); });
     bolts.forEach(function(b){ drawZap(b.pts, "#7dffab", "#3dff7a", 4 * S, b.life / b.max); });
+    shots.forEach(function(s){ drawZap([s.from, s.to], "#7dffab", "#3dff7a", 2.5 * S, s.life / s.max); });
     sparks.forEach(function(s){
       ctx.globalAlpha = Math.max(0, s.life / s.max);
       ctx.fillStyle = s.c; ctx.fillRect(s.x, s.y, s.r, s.r);
