@@ -4,9 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Mercado MTG</title>
+  <meta name="description" content="Compra y vende cartas de Magic: The Gathering en Perú con pago protegido: el vendedor cobra solo cuando recibes tu carta.">
+  <meta name="theme-color" content="#6c4fd6">
+  <meta property="og:title" content="Mercado MTG">
+  <meta property="og:description" content="Compra y vende cartas de Magic en Perú con pago protegido.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%236c4fd6'/%3E%3Crect x='7' y='4' width='10' height='16' rx='1.5' fill='none' stroke='white' stroke-width='1.6'/%3E%3Cpath d='M12 9v5M9.5 11.5h5' stroke='white' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E">
   <style>
-    html, body { margin: 0; height: 100%; background: #111; overflow: hidden; }
+    html, body { margin: 0; height: 100%; background: #131019; overflow: hidden; }
     iframe { border: 0; width: 100%; height: 100%; display: block; }
+    /* pantalla de carga mientras Apps Script responde */
+    #cargando { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+      background: #131019; color: #c7c0d6; font: 600 14px system-ui, -apple-system, "Segoe UI", sans-serif; transition: opacity .35s; }
+    #cargando.fuera { opacity: 0; pointer-events: none; }
+    #cargando .marca { width: 56px; height: 56px; border-radius: 15px; background: #6c4fd6; display: flex; align-items: center; justify-content: center; animation: latido 1.2s ease-in-out infinite; }
+    @keyframes latido { 50% { transform: scale(.9); opacity: .75; } }
+    @media (prefers-reduced-motion: reduce) { #cargando .marca { animation: none; } }
   </style>
 </head>
 <body>
@@ -14,10 +26,40 @@
        credentialless: carga sin las sesiones de Google del visitante, así no falla
        cuando hay varias cuentas abiertas. -->
   <iframe
+    id="app"
     credentialless
     src="https://script.google.com/macros/s/AKfycbxn5R4v8c-0SpumGkuwnUhzcjhSr6-o_EBaoj8Uclo5RU7NEfcepyT0vcri1yPnnynd3Q/exec"
     title="Mercado MTG"
     allow="clipboard-write; fullscreen; screen-wake-lock"
     allowfullscreen></iframe>
+  <div id="cargando" aria-live="polite">
+    <div class="marca" aria-hidden="true">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="4" y="2" width="16" height="20" rx="2" stroke="#fff" stroke-width="1.6"/><path d="M12 7v6M9 10h6" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </div>
+    Cargando Mercado MTG…
+  </div>
+  <script>
+    // El iframe credentialless pierde su almacenamiento al recargar: la sesión se guarda aquí.
+    // Solo se atiende a la app de Apps Script (sus marcos se sirven desde googleusercontent.com).
+    (function () {
+      var CLAVE = 'mtg_token';
+      function esLaApp(origen) { return /^https:\/\/[a-z0-9-]+[.-]script\.googleusercontent\.com$/.test(origen); }
+      window.addEventListener('message', function (e) {
+        if (!esLaApp(e.origin) || !e.data || typeof e.data !== 'object') return;
+        try {
+          if (e.data.tipo === 'mtg-guardar-token') {
+            var t = String(e.data.token || '').slice(0, 200);
+            if (t) localStorage.setItem(CLAVE, t); else localStorage.removeItem(CLAVE);
+          } else if (e.data.tipo === 'mtg-pedir-token') {
+            e.source.postMessage({ tipo: 'mtg-token', token: localStorage.getItem(CLAVE) || '' }, e.origin);
+          }
+        } catch (x) { }
+      });
+      var cargando = document.getElementById('cargando');
+      function ocultar() { cargando.classList.add('fuera'); }
+      document.getElementById('app').addEventListener('load', function () { setTimeout(ocultar, 400); });
+      setTimeout(ocultar, 12000);
+    })();
+  </script>
 </body>
 </html>
