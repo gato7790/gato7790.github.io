@@ -30,7 +30,7 @@
   <iframe
     id="app"
     credentialless
-    src="https://script.google.com/macros/s/AKfycbxn5R4v8c-0SpumGkuwnUhzcjhSr6-o_EBaoj8Uclo5RU7NEfcepyT0vcri1yPnnynd3Q/exec"
+    data-src="https://script.google.com/macros/s/AKfycbxn5R4v8c-0SpumGkuwnUhzcjhSr6-o_EBaoj8Uclo5RU7NEfcepyT0vcri1yPnnynd3Q/exec"
     title="Mercado MTG"
     allow="clipboard-write; fullscreen; screen-wake-lock"
     allowfullscreen></iframe>
@@ -63,6 +63,10 @@
           }
         } catch (x) { }
       });
+      // la app se carga aquí para pasarle ?carpeta=nick (enlaces para compartir una carpeta)
+      var app = document.getElementById('app');
+      var carpeta = (new URLSearchParams(location.search).get('carpeta') || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 24);
+      app.src = app.getAttribute('data-src') + (carpeta ? '?carpeta=' + encodeURIComponent(carpeta) : '');
       var cargando = document.getElementById('cargando');
       function ocultar() { cargando.classList.add('fuera'); }
       document.getElementById('app').addEventListener('load', function () { setTimeout(ocultar, 400); });
