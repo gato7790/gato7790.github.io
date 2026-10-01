@@ -41,7 +41,7 @@
     Cargando Mercado MTG…
   </div>
   <script>
-    // El iframe credentialless pierde su almacenamiento al recargar: la sesión se guarda aquí.
+    // El iframe credentialless pierde su almacenamiento al recargar: la sesión y el idioma se guardan aquí.
     // Solo se atiende a la app de Apps Script (sus marcos se sirven desde googleusercontent.com).
     (function () {
       var CLAVE = 'mtg_token';
@@ -54,6 +54,10 @@
             if (t) localStorage.setItem(CLAVE, t); else localStorage.removeItem(CLAVE);
           } else if (e.data.tipo === 'mtg-pedir-token') {
             e.source.postMessage({ tipo: 'mtg-token', token: localStorage.getItem(CLAVE) || '' }, e.origin);
+          } else if (e.data.tipo === 'mtg-guardar-idioma') {
+            localStorage.setItem('mtg_lang', e.data.idioma === 'en' ? 'en' : 'es');
+          } else if (e.data.tipo === 'mtg-pedir-idioma') {
+            e.source.postMessage({ tipo: 'mtg-idioma', idioma: localStorage.getItem('mtg_lang') || '' }, e.origin);
           }
         } catch (x) { }
       });
