@@ -8,7 +8,9 @@
   <meta name="theme-color" content="#0c0a1a">
   <meta property="og:title" content="Mercado MTG">
   <meta property="og:description" content="Compra y vende cartas de Magic en Perú con pago protegido.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%236c4fd6'/%3E%3Crect x='7' y='4' width='10' height='16' rx='1.5' fill='none' stroke='white' stroke-width='1.6'/%3E%3Cpath d='M12 9v5M9.5 11.5h5' stroke='white' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="apple-touch-icon" href="logo-512.png">
+  <meta property="og:image" content="https://gato7790.github.io/mercado-mtg/logo-512.png">
   <style>
     html, body { margin: 0; height: 100%; background: #0c0a1a; overflow: hidden; }
     iframe { border: 0; width: 100%; height: 100%; display: block; }
@@ -16,7 +18,7 @@
     #cargando { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
       background: #0c0a1a; color: #c7c0d6; font: 600 14px system-ui, -apple-system, "Segoe UI", sans-serif; transition: opacity .35s; }
     #cargando.fuera { opacity: 0; pointer-events: none; }
-    #cargando .marca { width: 56px; height: 56px; border-radius: 15px; background: linear-gradient(135deg,#7b5cff,#b062ff); box-shadow: 0 8px 24px rgba(139,108,255,.4); display: flex; align-items: center; justify-content: center; animation: latido 1.2s ease-in-out infinite; }
+    #cargando .marca { width: 72px; height: 72px; border-radius: 18px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.18); display: flex; align-items: center; justify-content: center; animation: latido 1.2s ease-in-out infinite; }
     @keyframes latido { 50% { transform: scale(.9); opacity: .75; } }
     @media (prefers-reduced-motion: reduce) { #cargando .marca { animation: none; } }
   </style>
@@ -34,7 +36,7 @@
     allowfullscreen></iframe>
   <div id="cargando" aria-live="polite">
     <div class="marca" aria-hidden="true">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="4" y="2" width="16" height="20" rx="2" stroke="#fff" stroke-width="1.6"/><path d="M12 7v6M9 10h6" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <img src="logo.png" alt="" width="72" height="72" style="display:block">
     </div>
     Cargando Mercado MTG…
   </div>
