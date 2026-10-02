@@ -2,76 +2,27 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>Mercado MTG</title>
-  <meta name="description" content="Compra y vende cartas de Magic: The Gathering en Perú con pago protegido: el vendedor cobra solo cuando recibes tu carta.">
-  <meta name="theme-color" content="#0c0a1a">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mercado MTG se mudó</title>
+  <meta name="robots" content="noindex">
+  <link rel="canonical" href="https://mercado-mtg.github.io/">
   <meta property="og:title" content="Mercado MTG">
   <meta property="og:description" content="Compra y vende cartas de Magic en Perú con pago protegido.">
-  <link rel="icon" type="image/png" href="favicon.png">
-  <link rel="apple-touch-icon" href="logo-512.png">
-  <meta property="og:image" content="https://gato7790.github.io/mercado-mtg/logo-512.png">
+  <meta property="og:image" content="https://mercado-mtg.github.io/logo-512.png">
+  <link rel="icon" type="image/png" href="https://mercado-mtg.github.io/favicon.png">
+  <!-- sin JavaScript igual redirige -->
+  <meta http-equiv="refresh" content="0; url=https://mercado-mtg.github.io/">
+  <script>
+    // Mercado MTG ahora vive en mercado-mtg.github.io; se conservan los enlaces de carpetas (?carpeta=nick).
+    location.replace('https://mercado-mtg.github.io/' + location.search + location.hash);
+  </script>
   <style>
-    html, body { margin: 0; height: 100%; background: #0c0a1a; overflow: hidden; }
-    iframe { border: 0; width: 100%; height: 100%; display: block; }
-    /* pantalla de carga mientras Apps Script responde */
-    #cargando { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
-      background: #0c0a1a; color: #c7c0d6; font: 600 14px system-ui, -apple-system, "Segoe UI", sans-serif; transition: opacity .35s; }
-    #cargando.fuera { opacity: 0; pointer-events: none; }
-    #cargando .marca { width: 72px; height: 72px; border-radius: 18px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.18); display: flex; align-items: center; justify-content: center; animation: latido 1.2s ease-in-out infinite; }
-    @keyframes latido { 50% { transform: scale(.9); opacity: .75; } }
-    @media (prefers-reduced-motion: reduce) { #cargando .marca { animation: none; } }
+    html, body { margin: 0; height: 100%; background: #0c0a1a; color: #c7c0d6; font: 600 15px system-ui, -apple-system, "Segoe UI", sans-serif; }
+    body { display: flex; align-items: center; justify-content: center; text-align: center; padding: 16px; box-sizing: border-box; }
+    a { color: #b79cff; }
   </style>
 </head>
 <body>
-  <!-- La app corre en Google Apps Script (ver apps-script/); aquí solo se muestra.
-       credentialless: carga sin las sesiones de Google del visitante, así no falla
-       cuando hay varias cuentas abiertas. -->
-  <iframe
-    id="app"
-    credentialless
-    data-src="https://script.google.com/macros/s/AKfycbxn5R4v8c-0SpumGkuwnUhzcjhSr6-o_EBaoj8Uclo5RU7NEfcepyT0vcri1yPnnynd3Q/exec"
-    title="Mercado MTG"
-    allow="clipboard-write; fullscreen; screen-wake-lock"
-    allowfullscreen></iframe>
-  <div id="cargando" aria-live="polite">
-    <div class="marca" aria-hidden="true">
-      <img src="logo.png" alt="" width="72" height="72" style="display:block">
-    </div>
-    Cargando Mercado MTG…
-  </div>
-  <script>
-    // El iframe credentialless pierde su almacenamiento al recargar: la sesión y el idioma se guardan aquí.
-    // Solo se atiende a la app de Apps Script (sus marcos se sirven desde googleusercontent.com).
-    (function () {
-      var CLAVE = 'mtg_token';
-      function esLaApp(origen) { return /^https:\/\/[a-z0-9-]+[.-]script\.googleusercontent\.com$/.test(origen); }
-      window.addEventListener('message', function (e) {
-        if (!esLaApp(e.origin) || !e.data || typeof e.data !== 'object') return;
-        try {
-          if (e.data.tipo === 'mtg-guardar-token') {
-            var t = String(e.data.token || '').slice(0, 200);
-            if (t) localStorage.setItem(CLAVE, t); else localStorage.removeItem(CLAVE);
-          } else if (e.data.tipo === 'mtg-pedir-token') {
-            e.source.postMessage({ tipo: 'mtg-token', token: localStorage.getItem(CLAVE) || '' }, e.origin);
-          } else if (e.data.tipo === 'mtg-guardar-idioma') {
-            localStorage.setItem('mtg_lang', e.data.idioma === 'en' ? 'en' : 'es');
-          } else if (e.data.tipo === 'mtg-pedir-idioma') {
-            e.source.postMessage({ tipo: 'mtg-idioma', idioma: localStorage.getItem('mtg_lang') || '', dicc: localStorage.getItem('mtg_tr_en3') || '' }, e.origin);
-          } else if (e.data.tipo === 'mtg-guardar-dicc') {
-            localStorage.setItem('mtg_tr_en3', String(e.data.dicc || '').slice(0, 3000000)); // traducciones al inglés ya hechas
-          }
-        } catch (x) { }
-      });
-      // la app se carga aquí para pasarle ?carpeta=nick (enlaces para compartir una carpeta)
-      var app = document.getElementById('app');
-      var carpeta = (new URLSearchParams(location.search).get('carpeta') || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 24);
-      app.src = app.getAttribute('data-src') + (carpeta ? '?carpeta=' + encodeURIComponent(carpeta) : '');
-      var cargando = document.getElementById('cargando');
-      function ocultar() { cargando.classList.add('fuera'); }
-      document.getElementById('app').addEventListener('load', function () { setTimeout(ocultar, 400); });
-      setTimeout(ocultar, 12000);
-    })();
-  </script>
+  <p>Mercado MTG se mudó a<br><a href="https://mercado-mtg.github.io/">mercado-mtg.github.io</a></p>
 </body>
 </html>
